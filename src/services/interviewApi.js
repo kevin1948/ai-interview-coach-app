@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 const USE_MOCK_API = true;
 const BACKEND_BASE_URL = "YOUR_BACKEND_URL";
 
@@ -17,6 +19,11 @@ const mockQuestions = {
     "What are your strengths?",
     "Why should we hire you?",
   ],
+  Mock: [
+    "Tell me about yourself.",
+    "Why should we hire you?",
+    "What are your strengths and weaknesses?",
+  ],
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,7 +35,7 @@ export const startInterviewSession = async (sessionType) => {
     await wait(700);
 
     return {
-      sessionId: "mock-session-001",
+      sessionId: `mock-${sessionType.toLowerCase()}-001`,
       questionNumber: 1,
       questionText: questions[0],
       isSessionComplete: false,
@@ -50,6 +57,55 @@ export const startInterviewSession = async (sessionType) => {
   return response.json();
 };
 
+const getAudioFileForUpload = async (audioUri) => {
+  if (!audioUri) {
+    throw new Error("No audio URI found");
+  }
+
+  if (Platform.OS === "web") {
+    const blobResponse = await fetch(audioUri);
+    const blob = await blobResponse.blob();
+
+    return {
+      file: blob,
+      fileName: "answer.webm",
+      mimeType: blob.type || "audio/webm",
+    };
+  }
+
+  const lowerUri = audioUri.toLowerCase();
+
+  let mimeType = "audio/m4a";
+  let fileName = "answer.m4a";
+
+  if (lowerUri.endsWith(".wav")) {
+    mimeType = "audio/wav";
+    fileName = "answer.wav";
+  } else if (lowerUri.endsWith(".mp3")) {
+    mimeType = "audio/mpeg";
+    fileName = "answer.mp3";
+  } else if (lowerUri.endsWith(".aac")) {
+    mimeType = "audio/aac";
+    fileName = "answer.aac";
+  } else if (lowerUri.endsWith(".caf")) {
+    mimeType = "audio/x-caf";
+    fileName = "answer.caf";
+  } else if (lowerUri.endsWith(".webm")) {
+    mimeType = "audio/webm";
+    fileName = "answer.webm";
+  }
+
+  return {
+    file: {
+      uri: audioUri,
+      name: fileName,
+      type: mimeType,
+    },
+    fileName,
+    mimeType,
+  };
+};
+
 export const submitInterviewAnswer = async ({
   audioUri,
   sessionType,
@@ -58,7 +114,6 @@ export const submitInterviewAnswer = async ({
 }) => {
   if (USE_MOCK_API) {
     const questions = mockQuestions[sessionType] || mockQuestions.Introduction;
-    const nextIndex = questionNumber;
 
     await wait(1200);
 
@@ -71,21 +126,27 @@ export const submitInterviewAnswer = async ({
     const feedbackText =
       feedbackSamples[(questionNumber - 1) % feedbackSamples.length];
 
+    const currentIndex = questionNumber - 1;
+    const nextIndex = currentIndex + 1;
+    const isSessionComplete = nextIndex >= questions.length;
+
     return {
       feedbackText,
-      nextQuestionText: questions[nextIndex] || "",
-      questionNumber: nextIndex + 1,
-      isSessionComplete: nextIndex >= questions.length,
+      nextQuestionText: isSessionComplete ? "" : questions[nextIndex],
+      questionNumber: isSessionComplete ? questionNumber : questionNumber + 1,
+      isSessionComplete,
     };
   }
 
+  const { file } = await getAudioFileForUpload(audioUri);
+
   const formData = new FormData();
 
-  formData.append("audio", {
-    uri: audioUri,
-    name: "answer.m4a",
-    type: "audio/m4a",
-  });
+  if (Platform.OS === "web") {
+    formData.append("audio", file, "answer.webm");
+  } else {
+    formData.append("audio", file);
+  }
 
   formData.append("sessionType", sessionType);
   formData.append("questionNumber", String(questionNumber));
@@ -97,7 +158,8 @@ export const submitInterviewAnswer = async ({
   });
 
   if (!response.ok) {
-    throw new Error("Failed to submit interview answer");
+    const errorText = await response.text().catch(() => "");
+    throw new Error(errorText || "Failed to submit interview answer");
   }
 
   return response.json();
