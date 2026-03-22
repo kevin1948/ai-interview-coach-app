@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,13 +8,9 @@ import {
   ScrollView,
   Alert,
   Platform,
-  Animated,
-  Dimensions,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { uploadResume } from "../services/resumeApi";
-
-const { width } = Dimensions.get("window");
 
 // Only import DocumentPicker on native platforms
 let DocumentPicker;
@@ -27,6 +23,7 @@ export default function ResumeScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [parsedResume, setParsedResume] = useState(null);
   const fileInputRef = useRef(null);
 
   const handleFileSelect = async (file) => {
@@ -78,17 +75,12 @@ export default function ResumeScreen() {
       clearInterval(progressInterval);
       setUploadProgress(100);
 
+      // Store parsed resume data from API response
+      if (response.resume) {
+        setParsedResume(response.resume);
+      }
+
       setUploadSuccess(true);
-      Alert.alert("Success", "Resume uploaded successfully!", [
-        {
-          text: "OK",
-          onPress: () => {
-            setSelectedFile(null);
-            setUploadProgress(0);
-            setUploadSuccess(false);
-          },
-        },
-      ]);
     } catch (error) {
       setUploading(false);
       setUploadProgress(0);
@@ -164,9 +156,9 @@ export default function ResumeScreen() {
           </Text>
         </View>
 
-        {/* Upload Box */}
+        {/* Upload Box - Clean White MNC Style */}
         <View style={styles.uploadBoxWrapper}>
-          {uploadSuccess ? (
+          {uploadSuccess && parsedResume ? (
             <View style={[styles.uploadBox, styles.successBox]}>
               <MaterialIcons
                 name="check-circle"
@@ -176,7 +168,7 @@ export default function ResumeScreen() {
               />
               <Text style={styles.successText}>Resume Uploaded!</Text>
               <Text style={styles.successSubtext}>
-                Your resume has been successfully submitted.
+                Your resume has been successfully parsed.
               </Text>
             </View>
           ) : (
@@ -187,19 +179,22 @@ export default function ResumeScreen() {
               ]}
               onPress={handleBrowseFiles}
             >
-              <MaterialIcons
-                name="cloud-upload"
-                size={48}
-                color="#3b82f6"
-                style={styles.icon}
-              />
+              <View style={styles.uploadIconContainer}>
+                <MaterialIcons
+                  name="cloud-upload"
+                  size={52}
+                  color="#2563EB"
+                />
+              </View>
               <Text style={styles.uploadText}>
                 {selectedFile ? "Change File" : "Upload Resume"}
               </Text>
               <Text style={styles.uploadSubtext}>
-                Click to browse or drag and drop
+                Drag and drop or click to browse
               </Text>
-              <Text style={styles.formatText}>PDF only • Max 5MB</Text>
+              <View style={styles.formatBadge}>
+                <Text style={styles.formatText}>PDF only • Max 5MB</Text>
+              </View>
             </Pressable>
           )}
 
@@ -297,6 +292,84 @@ export default function ResumeScreen() {
           </View>
         )}
 
+        {/* Parsed Resume Data Display */}
+        {uploadSuccess && parsedResume && (
+          <View style={styles.parsedDataContainer}>
+            {/* Personal Info Card */}
+            <View style={styles.dataCard}>
+              <View style={styles.cardHeader}>
+                <MaterialIcons name="person" size={22} color="#2563EB" />
+                <Text style={styles.cardTitle}>Personal Information</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.personalName}>
+                  {parsedResume.personal?.full_name}
+                </Text>
+                <Text style={styles.personalDetail}>
+                  {parsedResume.personal?.email}
+                </Text>
+                <Text style={styles.personalDetail}>
+                  {parsedResume.personal?.phone}
+                </Text>
+                <Text style={styles.personalDetail}>
+                  {parsedResume.personal?.location}
+                </Text>
+              </View>
+            </View>
+
+            {/* Skills Card */}
+            <View style={styles.dataCard}>
+              <View style={styles.cardHeader}>
+                <MaterialIcons name="code" size={22} color="#2563EB" />
+                <Text style={styles.cardTitle}>Skills</Text>
+              </View>
+              <View style={styles.skillsContainer}>
+                {parsedResume.skills?.map((skill, index) => (
+                  <View key={index} style={styles.skillBadge}>
+                    <Text style={styles.skillText}>{skill}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Experience Card */}
+            <View style={styles.dataCard}>
+              <View style={styles.cardHeader}>
+                <MaterialIcons name="work" size={22} color="#2563EB" />
+                <Text style={styles.cardTitle}>Experience</Text>
+              </View>
+              <View style={styles.cardContent}>
+                {parsedResume.experience?.map((exp, index) => (
+                  <View key={index} style={styles.experienceItem}>
+                    <Text style={styles.expTitle}>{exp.title}</Text>
+                    <Text style={styles.expCompany}>
+                      {exp.company} • {exp.duration}
+                    </Text>
+                    <Text style={styles.expDescription}>{exp.description}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Upload Another Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.uploadAnotherButton,
+                pressed && styles.uploadAnotherPressed,
+              ]}
+              onPress={() => {
+                setSelectedFile(null);
+                setUploadProgress(0);
+                setUploadSuccess(false);
+                setParsedResume(null);
+              }}
+            >
+              <MaterialIcons name="refresh" size={20} color="#2563EB" />
+              <Text style={styles.uploadAnotherText}>Upload Another Resume</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Info Cards */}
         {!selectedFile && !uploadSuccess && (
           <View style={styles.infoCardsContainer}>
@@ -380,16 +453,31 @@ const styles = StyleSheet.create({
   },
   uploadBox: {
     borderWidth: 2,
-    borderColor: "#d1d5db",
+    borderColor: "#E5E7EB",
     borderStyle: "dashed",
-    borderRadius: 16,
-    padding: 40,
+    borderRadius: 20,
+    padding: 48,
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+      web: {
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06)",
+      },
+    }),
   },
   uploadBoxPressed: {
-    borderColor: "#3b82f6",
-    backgroundColor: "#f0f9ff",
+    borderColor: "#2563EB",
+    backgroundColor: "#F8FAFC",
+    borderStyle: "solid",
   },
   successBox: {
     borderWidth: 2,
@@ -397,24 +485,39 @@ const styles = StyleSheet.create({
     backgroundColor: "#f0fdf4",
     borderStyle: "solid",
   },
+  uploadIconContainer: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
   icon: {
     marginBottom: 12,
   },
   uploadText: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#111827",
-    marginBottom: 4,
-  },
-  uploadSubtext: {
-    fontSize: 14,
-    color: "#6b7280",
     marginBottom: 8,
   },
+  uploadSubtext: {
+    fontSize: 15,
+    color: "#6B7280",
+    marginBottom: 16,
+  },
+  formatBadge: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
   formatText: {
-    fontSize: 12,
-    color: "#9ca3af",
-    marginTop: 4,
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   successText: {
     fontSize: 18,
@@ -519,6 +622,104 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#6b7280",
+  },
+  // Parsed Resume Data Styles
+  parsedDataContainer: {
+    marginTop: 8,
+    gap: 16,
+  },
+  dataCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginLeft: 10,
+  },
+  cardContent: {
+    gap: 8,
+  },
+  personalName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  personalDetail: {
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 22,
+  },
+  skillsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  skillBadge: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  skillText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#2563EB",
+  },
+  experienceItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  expTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  expCompany: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  expDescription: {
+    fontSize: 14,
+    color: "#475569",
+    lineHeight: 20,
+  },
+  uploadAnotherButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+  },
+  uploadAnotherPressed: {
+    backgroundColor: "#DBEAFE",
+  },
+  uploadAnotherText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2563EB",
+    marginLeft: 8,
   },
   infoCardsContainer: {
     marginTop: 24,

@@ -1,62 +1,47 @@
 import { Platform } from "react-native";
 
-const USE_MOCK_API = true;
-const BACKEND_BASE_URL = "YOUR_BACKEND_URL";
+// Backend API Configuration - Change this to your actual backend URL
+const API_BASE_URL = "http://localhost:8000";
 
-const mockQuestions = {
-  Project: [
-    "Tell me about a project you are proud of.",
-    "What challenge did you face in that project?",
-    "What impact did your project create?",
-  ],
-  Experience: [
-    "Tell me about your internship experience.",
-    "What did you learn while working in a team?",
-    "Describe a challenge you solved during your internship.",
-  ],
-  Introduction: [
-    "Tell me about yourself.",
-    "What are your strengths?",
-    "Why should we hire you?",
-  ],
-  Mock: [
-    "Tell me about yourself.",
-    "Why should we hire you?",
-    "What are your strengths and weaknesses?",
-  ],
-};
-
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
+/**
+ * Start an interview session
+ * POST /interview/start
+ */
 export const startInterviewSession = async (sessionType) => {
-  if (USE_MOCK_API) {
-    const questions = mockQuestions[sessionType] || mockQuestions.Introduction;
+  try {
+    const response = await fetch(`${API_BASE_URL}/interview/start`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionType }),
+    });
 
-    await wait(700);
+    const data = await response.json();
 
-    return {
-      sessionId: `mock-${sessionType.toLowerCase()}-001`,
-      questionNumber: 1,
-      questionText: questions[0],
-      isSessionComplete: false,
-    };
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to start interview session.");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Failed to start session:", error);
+
+    if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+      throw new Error(
+        "Cannot connect to server. Please ensure the backend is running at " +
+          API_BASE_URL
+      );
+    }
+
+    throw error;
   }
-
-  const response = await fetch(`${BACKEND_BASE_URL}/interview/start`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ sessionType }),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to start interview session");
-  }
-
-  return response.json();
 };
 
+/**
+ * Get audio file ready for upload (handles web vs native)
+ */
 const getAudioFileForUpload = async (audioUri) => {
   if (!audioUri) {
     throw new Error("No audio URI found");
@@ -106,61 +91,56 @@ const getAudioFileForUpload = async (audioUri) => {
   };
 };
 
+/**
+ * Submit interview answer
+ * POST /interview/answer
+ */
 export const submitInterviewAnswer = async ({
   audioUri,
   sessionType,
   questionNumber,
   sessionId,
 }) => {
-  if (USE_MOCK_API) {
-    const questions = mockQuestions[sessionType] || mockQuestions.Introduction;
+  try {
+    const { file } = await getAudioFileForUpload(audioUri);
 
-    await wait(1200);
+    const formData = new FormData();
 
-    const feedbackSamples = [
-      "Good answer. Try to be more specific and structured.",
-      "Nice response. Speak with a little more confidence and give a clear example.",
-      "That was a solid answer. Add measurable impact if possible.",
-    ];
+    if (Platform.OS === "web") {
+      formData.append("audio", file, "answer.webm");
+    } else {
+      formData.append("audio", file);
+    }
 
-    const feedbackText =
-      feedbackSamples[(questionNumber - 1) % feedbackSamples.length];
+    formData.append("sessionType", sessionType);
+    formData.append("questionNumber", String(questionNumber));
+    formData.append("sessionId", sessionId);
 
-    const currentIndex = questionNumber - 1;
-    const nextIndex = currentIndex + 1;
-    const isSessionComplete = nextIndex >= questions.length;
+    const response = await fetch(`${API_BASE_URL}/interview/answer`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+      body: formData,
+    });
 
-    return {
-      feedbackText,
-      nextQuestionText: isSessionComplete ? "" : questions[nextIndex],
-      questionNumber: isSessionComplete ? questionNumber : questionNumber + 1,
-      isSessionComplete,
-    };
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to submit interview answer.");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Failed to submit answer:", error);
+
+    if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+      throw new Error(
+        "Cannot connect to server. Please ensure the backend is running at " +
+          API_BASE_URL
+      );
+    }
+
+    throw error;
   }
-
-  const { file } = await getAudioFileForUpload(audioUri);
-
-  const formData = new FormData();
-
-  if (Platform.OS === "web") {
-    formData.append("audio", file, "answer.webm");
-  } else {
-    formData.append("audio", file);
-  }
-
-  formData.append("sessionType", sessionType);
-  formData.append("questionNumber", String(questionNumber));
-  formData.append("sessionId", sessionId);
-
-  const response = await fetch(`${BACKEND_BASE_URL}/interview/answer`, {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(errorText || "Failed to submit interview answer");
-  }
-
-  return response.json();
 };
