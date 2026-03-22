@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,21 +8,15 @@ import {
   ScrollView,
   Alert,
   Platform,
-  Animated,
   Dimensions,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { uploadResume } from "../services/resumeApi";
+import * as DocumentPicker from "expo-document-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
-// Only import DocumentPicker on native platforms
-let DocumentPicker;
-if (Platform.OS !== "web") {
-  DocumentPicker = require("react-native-document-picker").default;
-}
-
-export default function ResumeScreen() {
+export default function ResumeScreen({ navigation }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -32,15 +26,13 @@ export default function ResumeScreen() {
   const handleFileSelect = async (file) => {
     if (!file) return;
 
-    // Validate file type
-    if (!file.name?.endsWith(".pdf")) {
+    if (!file.name?.toLowerCase().endsWith(".pdf")) {
       Alert.alert("Invalid File", "Please upload a PDF file only.", [
         { text: "OK" },
       ]);
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       Alert.alert("File Too Large", "Resume must be less than 5MB.", [
         { text: "OK" },
@@ -51,7 +43,7 @@ export default function ResumeScreen() {
     setSelectedFile({
       name: file.name,
       size: file.size,
-      uri: file,
+      uri: file.uri || file,
     });
     setUploadSuccess(false);
   };
@@ -68,33 +60,43 @@ export default function ResumeScreen() {
       setUploading(true);
       setUploadProgress(0);
 
-      // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 300);
 
-      const response = await uploadResume(selectedFile.uri);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const mockResponse = {
+        user_id: "mock-user-001",
+        resume: {
+          id: "mock-resume-001",
+        },
+      };
 
       clearInterval(progressInterval);
       setUploadProgress(100);
 
+      await AsyncStorage.setItem("candidateId", mockResponse.user_id);
+      await AsyncStorage.setItem("resumeId", mockResponse.resume.id);
+
       setUploadSuccess(true);
+
       Alert.alert("Success", "Resume uploaded successfully!", [
         {
-          text: "OK",
+          text: "Continue",
           onPress: () => {
             setSelectedFile(null);
             setUploadProgress(0);
             setUploadSuccess(false);
+            navigation.navigate("Home");
           },
         },
       ]);
     } catch (error) {
-      setUploading(false);
       setUploadProgress(0);
       Alert.alert(
         "Upload Failed",
-        error.message || "Failed to upload resume. Please try again.",
+        error?.message || "Failed to upload resume. Please try again.",
         [{ text: "OK" }]
       );
     } finally {
@@ -106,39 +108,28 @@ export default function ResumeScreen() {
     try {
       if (Platform.OS === "web") {
         fileInputRef.current?.click();
-      } else if (DocumentPicker) {
-        // Use DocumentPicker for native Android and iOS
-        const result = await DocumentPicker.pick({
-          type: [DocumentPicker.types.pdf],
-          allowMultiple: false,
-          copyTo: "cachesDirectory",
+      } else {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: "application/pdf",
+          copyToCacheDirectory: true,
+          multiple: false,
         });
 
-        if (result && result.length > 0) {
-          const file = result[0];
-          handleFileSelect({
-            name: file.name,
-            size: file.size,
-            uri: file.fileCopyUri || file.uri,
-          });
-        }
-      } else {
-        Alert.alert(
-          "Error",
-          "File picker not available on this platform.",
-          [{ text: "OK" }]
-        );
+        if (result.canceled) return;
+
+        const file = result.assets?.[0];
+        if (!file) return;
+
+        handleFileSelect({
+          name: file.name,
+          size: file.size,
+          uri: file.uri,
+        });
       }
     } catch (err) {
-      if (DocumentPicker && DocumentPicker.isCancel(err)) {
-        // User cancelled the picker
-        return;
-      }
-      Alert.alert(
-        "Error",
-        "Failed to pick document. Please try again.",
-        [{ text: "OK" }]
-      );
+      Alert.alert("Error", "Failed to pick document. Please try again.", [
+        { text: "OK" },
+      ]);
     }
   };
 
@@ -156,7 +147,6 @@ export default function ResumeScreen() {
       contentContainerStyle={styles.contentContainer}
     >
       <View style={styles.container}>
-        {/* Header Section */}
         <View style={styles.headerSection}>
           <Text style={styles.mainTitle}>Upload Your Resume</Text>
           <Text style={styles.subtitle}>
@@ -164,7 +154,6 @@ export default function ResumeScreen() {
           </Text>
         </View>
 
-        {/* Upload Box */}
         <View style={styles.uploadBoxWrapper}>
           {uploadSuccess ? (
             <View style={[styles.uploadBox, styles.successBox]}>
@@ -211,13 +200,22 @@ export default function ResumeScreen() {
               style={{ display: "none" }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handleFileSelect(file);
+                if (
+                  file &&
+                  file.name &&
+                  file.size !== undefined
+                ) {
+                  handleFileSelect({
+                    name: file.name,
+                    size: file.size,
+                    uri: file,
+                  });
+                }
               }}
             />
           )}
         </View>
 
-        {/* Selected File Info */}
         {selectedFile && !uploadSuccess && (
           <View style={styles.fileInfoBox}>
             <View style={styles.fileInfoContent}>
@@ -244,7 +242,6 @@ export default function ResumeScreen() {
           </View>
         )}
 
-        {/* Upload Progress */}
         {uploading && (
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
@@ -256,7 +253,6 @@ export default function ResumeScreen() {
           </View>
         )}
 
-        {/* Action Buttons */}
         {selectedFile && !uploadSuccess && (
           <View style={styles.buttonGroup}>
             <Pressable
@@ -297,7 +293,6 @@ export default function ResumeScreen() {
           </View>
         )}
 
-        {/* Info Cards */}
         {!selectedFile && !uploadSuccess && (
           <View style={styles.infoCardsContainer}>
             <View style={styles.infoCard}>

@@ -6,36 +6,56 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [resumeUploaded, setResumeUploaded] = useState(false);
+  const [candidateId, setCandidateId] = useState("");
+  const [resumeId, setResumeId] = useState("");
 
   useEffect(() => {
     fetchProfileStatus();
-  }, []);
+
+    const unsubscribe = navigation.addListener("focus", () => {
+      fetchProfileStatus();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const fetchProfileStatus = async () => {
-  try {
-    // Temporary mock backend response
-    const response = { resumeUploaded: true }; 
+    try {
+      const storedCandidateId = await AsyncStorage.getItem("candidateId");
+      const storedResumeId = await AsyncStorage.getItem("resumeId");
 
-    setResumeUploaded(response.resumeUploaded);
-  } catch (error) {
-    console.log("Failed to fetch profile status:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+      setCandidateId(storedCandidateId || "");
+      setResumeId(storedResumeId || "");
+      setResumeUploaded(!!storedCandidateId && !!storedResumeId);
+    } catch (error) {
+      console.log("Failed to fetch profile status:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInterviewCoach = () => {
     if (!resumeUploaded) return;
-    navigation.navigate("SessionPicker");
+
+    navigation.navigate("SessionPicker", {
+      candidateId,
+      resumeId,
+    });
   };
 
   const handleMockInterview = () => {
     if (!resumeUploaded) return;
-    navigation.navigate("MockInterview");
+
+    navigation.navigate("MockInterview", {
+      sessionTitle: "Mock Interview",
+      candidateId,
+      resumeId,
+    });
   };
 
   return (
@@ -57,10 +77,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.button,
-              !resumeUploaded && styles.disabledButton
-            ]}
+            style={[styles.button, !resumeUploaded && styles.disabledButton]}
             onPress={handleInterviewCoach}
             disabled={!resumeUploaded}
           >
@@ -68,10 +85,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.button,
-              !resumeUploaded && styles.disabledButton
-            ]}
+            style={[styles.button, !resumeUploaded && styles.disabledButton]}
             onPress={handleMockInterview}
             disabled={!resumeUploaded}
           >
@@ -79,9 +93,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
 
           {!resumeUploaded && (
-            <Text style={styles.note}>
-              Please upload your resume first.
-            </Text>
+            <Text style={styles.note}>Please upload your resume first.</Text>
           )}
         </>
       )}

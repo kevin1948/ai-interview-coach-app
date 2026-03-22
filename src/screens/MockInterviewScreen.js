@@ -23,6 +23,8 @@ import {
 export default function MockInterviewScreen({ route, navigation }) {
   const sessionIdFromRoute = route?.params?.sessionId || "";
   const sessionTitle = route?.params?.sessionTitle || "Mock Interview";
+  const candidateId = route?.params?.candidateId || "";
+  const resumeId = route?.params?.resumeId || "";
 
   const { isRecording, bars, start, stop } = useRealtimeWaveform();
 
@@ -150,7 +152,11 @@ export default function MockInterviewScreen({ route, navigation }) {
     try {
       setStatusText("Loading first mock question...");
 
-      const data = await startInterviewSession("Mock");
+      const data = await startInterviewSession({
+        sessionType: "Mock",
+        candidateId,
+        resumeId,
+      });
 
       if (!mountedRef.current) return;
 
@@ -214,17 +220,24 @@ export default function MockInterviewScreen({ route, navigation }) {
         sessionType: "Mock",
         questionNumber: questionIndex,
         sessionId,
+        candidateId,
+        resumeId,
       });
 
       if (!mountedRef.current) return;
 
+      const backendFeedback = data.feedbackText || "";
       const nextQuestion = data.nextQuestionText || "";
       const nextQuestionNumber = data.questionNumber || questionIndex + 1;
       const completed = !!data.isSessionComplete;
 
       setSeconds(0);
 
-      await speakTextAsync("Good answer. Let's move to the next question.");
+      if (backendFeedback) {
+        await speakTextAsync(backendFeedback);
+      } else {
+        await speakTextAsync("Good answer. Let's move to the next question.");
+      }
 
       if (!mountedRef.current) return;
 

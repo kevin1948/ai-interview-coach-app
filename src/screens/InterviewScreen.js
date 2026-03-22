@@ -23,6 +23,8 @@ import {
 export default function InterviewScreen({ route, navigation }) {
   const sessionType = route?.params?.type || "Introduction";
   const sessionTitle = route?.params?.sessionTitle || `${sessionType} Session`;
+  const candidateId = route?.params?.candidateId || "";
+  const resumeId = route?.params?.resumeId || "";
 
   const { isRecording, bars, start, stop } = useRealtimeWaveform();
 
@@ -150,7 +152,11 @@ export default function InterviewScreen({ route, navigation }) {
     try {
       setStatusText("Loading first interview question...");
 
-      const data = await startInterviewSession(sessionType);
+      const data = await startInterviewSession({
+        sessionType,
+        candidateId,
+        resumeId,
+      });
 
       if (!mountedRef.current) return;
 
@@ -214,6 +220,8 @@ export default function InterviewScreen({ route, navigation }) {
         sessionType,
         questionNumber: questionIndex,
         sessionId,
+        candidateId,
+        resumeId,
       });
 
       if (!mountedRef.current) return;
