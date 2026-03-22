@@ -35,7 +35,7 @@ export default function HomeScreen({ navigation }) {
 
   const handleMockInterview = () => {
     if (!resumeUploaded) return;
-    navigation.navigate("MockInterview");
+    navigation.navigate("MockInterviewList");
   };
 
   return (
