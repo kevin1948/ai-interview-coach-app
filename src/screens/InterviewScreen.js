@@ -16,15 +16,12 @@ import * as Speech from "expo-speech";
 import Waveform from "../../components/Waveform";
 import useRealtimeWaveform from "../audio/useRealtimeWaveform";
 import {
-  startInterviewSession,
-  submitInterviewAnswer,
-} from "../services/interviewApi";
+  startPracticeQuestion,
+  submitPracticeAnswer,
+} from "../services/practiceApi";
 
 export default function InterviewScreen({ route, navigation }) {
-  const sessionType = route?.params?.type || "Introduction";
-  const sessionTitle = route?.params?.sessionTitle || `${sessionType} Session`;
-  const candidateId = route?.params?.candidateId || "";
-  const resumeId = route?.params?.resumeId || "";
+  const sessionTitle = route?.params?.sessionTitle || "Interview Coach";
 
   const { isRecording, bars, start, stop } = useRealtimeWaveform();
 
@@ -33,10 +30,9 @@ export default function InterviewScreen({ route, navigation }) {
   const [isLoadingNext, setIsLoadingNext] = useState(false);
   const [sessionFinished, setSessionFinished] = useState(false);
 
-  const [sessionId, setSessionId] = useState("");
   const [questionIndex, setQuestionIndex] = useState(1);
   const [questionText, setQuestionText] = useState("");
-  const [statusText, setStatusText] = useState("Preparing your session...");
+  const [statusText, setStatusText] = useState("Preparing your practice session...");
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -104,7 +100,7 @@ export default function InterviewScreen({ route, navigation }) {
     }
 
     return () => pulseLoop?.stop();
-  }, [isRecording]);
+  }, [isRecording, glowAnim, pulseAnim]);
 
   const formattedTime = useMemo(() => {
     const mins = Math.floor(seconds / 60);
@@ -117,7 +113,10 @@ export default function InterviewScreen({ route, navigation }) {
       if (!text || !text.trim()) return resolve();
 
       Speech.stop();
-      if (mountedRef.current) setIsSpeaking(true);
+
+      if (mountedRef.current) {
+        setIsSpeaking(true);
+      }
 
       Speech.speak(text, {
         language: "en-US",
@@ -141,8 +140,10 @@ export default function InterviewScreen({ route, navigation }) {
 
   const speakQuestion = async (text) => {
     if (!text) return;
+
     setStatusText("AI is asking the question...");
     await speakTextAsync(text);
+
     if (mountedRef.current) {
       setStatusText("Tap the mic to start answering.");
     }
@@ -152,24 +153,24 @@ export default function InterviewScreen({ route, navigation }) {
     try {
       setStatusText("Loading first interview question...");
 
-      const data = await startInterviewSession({
-        sessionType,
-        candidateId,
-        resumeId,
-      });
+      const data = await startPracticeQuestion();
 
       if (!mountedRef.current) return;
 
-      setSessionId(data.sessionId || "");
-      setQuestionIndex(data.questionNumber || 1);
-      setQuestionText(data.questionText || "");
+      setQuestionIndex(1);
+      setQuestionText(data?.text || "");
       setSessionFinished(false);
 
-      await speakQuestion(data.questionText || "First question.");
+      await speakQuestion(data?.text || "First question.");
     } catch (error) {
-      console.log("Interview session init error:", error);
+      console.log("Practice session init error:", error);
+
       if (!mountedRef.current) return;
-      Alert.alert("Error", "Could not start interview session.");
+
+      Alert.alert(
+        "Error",
+        error?.message || "Could not start practice session."
+      );
       setStatusText("Session failed.");
     }
   };
@@ -182,6 +183,7 @@ export default function InterviewScreen({ route, navigation }) {
         setSeconds(0);
         setStatusText("Starting microphone...");
         await start();
+
         if (mountedRef.current) {
           setStatusText("Recording in progress...");
         }
@@ -199,6 +201,7 @@ export default function InterviewScreen({ route, navigation }) {
       }
     } catch (error) {
       console.log("Mic error:", error);
+
       if (!mountedRef.current) return;
 
       setIsLoadingNext(false);
@@ -215,64 +218,68 @@ export default function InterviewScreen({ route, navigation }) {
     try {
       setStatusText("Sending answer to backend...");
 
-      const data = await submitInterviewAnswer({
+      const data = await submitPracticeAnswer({
         audioUri,
-        sessionType,
-        questionNumber: questionIndex,
-        sessionId,
-        candidateId,
-        resumeId,
       });
 
       if (!mountedRef.current) return;
 
-      const backendFeedback = data.feedbackText || "";
-      const nextQuestion = data.nextQuestionText || "";
-      const nextQuestionNumber = data.questionNumber || questionIndex + 1;
-      const completed = !!data.isSessionComplete;
-
       setSeconds(0);
 
-      if (backendFeedback) {
+      if (data.feedback) {
         setStatusText("Playing feedback...");
-        await speakTextAsync(backendFeedback);
+        await speakTextAsync(data.feedback);
       }
 
       if (!mountedRef.current) return;
 
-      if (completed) {
+      if (data.practiceComplete) {
         setSessionFinished(true);
         setIsLoadingNext(false);
-        setStatusText("Session complete.");
-        await speakTextAsync("Your interview session is completed.");
+        setStatusText("Practice session completed.");
+
+        await speakTextAsync(
+          "Great job. You have completed your practice session."
+        );
 
         if (!mountedRef.current) return;
 
-        Alert.alert("Session Complete", "Great job! You completed this session.", [
-          {
-            text: "Go Back",
-            onPress: () => navigation.goBack(),
-          },
-        ]);
+        Alert.alert(
+          "Practice Complete",
+          "Nice work! Keep practicing regularly.",
+          [
+            {
+              text: "Go Back",
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
         return;
       }
 
-      setQuestionIndex(nextQuestionNumber);
-      setQuestionText(nextQuestion);
+      const nextQuestionText = data.nextQuestion?.text || "";
 
+      setQuestionIndex((prev) => prev + 1);
+      setQuestionText(nextQuestionText);
       setStatusText("Playing next question...");
-      await speakQuestion(nextQuestion || "Next question.");
+
+      await speakQuestion(nextQuestionText || "Next question.");
 
       if (mountedRef.current) {
         setIsLoadingNext(false);
       }
     } catch (error) {
-      console.log("Backend error:", error);
+      console.log("Practice backend error:", error);
+
       if (!mountedRef.current) return;
 
       setIsLoadingNext(false);
       setStatusText("Failed to process answer.");
-      Alert.alert("Error", "Failed to process recording.");
+
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to process recording."
+      );
     }
   };
 
@@ -280,6 +287,7 @@ export default function InterviewScreen({ route, navigation }) {
     if (!questionText || isLoadingNext || isRecording || isSpeaking || sessionFinished) {
       return;
     }
+
     await speakQuestion(questionText);
   };
 
@@ -299,7 +307,7 @@ export default function InterviewScreen({ route, navigation }) {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.container}>
         <View style={styles.headerBlock}>
-          <Text style={styles.screenTitle}>Interview</Text>
+          <Text style={styles.screenTitle}>Interview Coach</Text>
           <Text style={styles.screenSubtitle}>{sessionTitle}</Text>
         </View>
 
@@ -307,7 +315,7 @@ export default function InterviewScreen({ route, navigation }) {
           <View style={styles.questionTopRow}>
             <View style={styles.questionBadge}>
               <Ionicons name="sparkles" size={15} color="#2563EB" />
-              <Text style={styles.questionBadgeText}>AI Question</Text>
+              <Text style={styles.questionBadgeText}>Practice Question</Text>
             </View>
 
             <View style={styles.rightTopGroup}>

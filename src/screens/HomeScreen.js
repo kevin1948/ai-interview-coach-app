@@ -51,8 +51,7 @@ export default function HomeScreen({ navigation }) {
   const handleMockInterview = () => {
     if (!resumeUploaded) return;
 
-    navigation.navigate("MockInterview", {
-      sessionTitle: "Mock Interview",
+    navigation.navigate("MockInterviewList", {
       candidateId,
       resumeId,
     });

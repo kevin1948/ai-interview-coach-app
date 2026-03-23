@@ -18,13 +18,12 @@ import useRealtimeWaveform from "../audio/useRealtimeWaveform";
 import {
   startInterviewSession,
   submitInterviewAnswer,
+  getInterviewFeedback,
 } from "../services/interviewApi";
 
 export default function MockInterviewScreen({ route, navigation }) {
-  const sessionIdFromRoute = route?.params?.sessionId || "";
   const sessionTitle = route?.params?.sessionTitle || "Mock Interview";
   const candidateId = route?.params?.candidateId || "";
-  const resumeId = route?.params?.resumeId || "";
 
   const { isRecording, bars, start, stop } = useRealtimeWaveform();
 
@@ -33,10 +32,11 @@ export default function MockInterviewScreen({ route, navigation }) {
   const [isLoadingNext, setIsLoadingNext] = useState(false);
   const [sessionFinished, setSessionFinished] = useState(false);
 
-  const [sessionId, setSessionId] = useState(sessionIdFromRoute);
+  const [sessionId, setSessionId] = useState("");
   const [questionIndex, setQuestionIndex] = useState(1);
   const [questionText, setQuestionText] = useState("");
   const [statusText, setStatusText] = useState("Preparing your mock session...");
+  const [finalFeedback, setFinalFeedback] = useState(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -117,7 +117,10 @@ export default function MockInterviewScreen({ route, navigation }) {
       if (!text || !text.trim()) return resolve();
 
       Speech.stop();
-      if (mountedRef.current) setIsSpeaking(true);
+
+      if (mountedRef.current) {
+        setIsSpeaking(true);
+      }
 
       Speech.speak(text, {
         language: "en-US",
@@ -141,8 +144,10 @@ export default function MockInterviewScreen({ route, navigation }) {
 
   const speakQuestion = async (text) => {
     if (!text) return;
+
     setStatusText("AI is asking the question...");
     await speakTextAsync(text);
+
     if (mountedRef.current) {
       setStatusText("Tap the mic to start answering.");
     }
@@ -153,23 +158,23 @@ export default function MockInterviewScreen({ route, navigation }) {
       setStatusText("Loading first mock question...");
 
       const data = await startInterviewSession({
-        sessionType: "Mock",
         candidateId,
-        resumeId,
       });
 
       if (!mountedRef.current) return;
 
       setSessionId(data.sessionId || "");
-      setQuestionIndex(data.questionNumber || 1);
-      setQuestionText(data.questionText || "");
+      setQuestionIndex(1);
+      setQuestionText(data.currentQuestion?.text || "");
       setSessionFinished(false);
 
-      await speakQuestion(data.questionText || "First question.");
+      await speakQuestion(data.currentQuestion?.text || "First question.");
     } catch (error) {
-      console.log("Session init error:", error);
+      console.log("Mock session init error:", error);
+
       if (!mountedRef.current) return;
-      Alert.alert("Error", "Could not start mock interview.");
+
+      Alert.alert("Error", error?.message || "Could not start mock interview.");
       setStatusText("Session failed.");
     }
   };
@@ -182,6 +187,7 @@ export default function MockInterviewScreen({ route, navigation }) {
         setSeconds(0);
         setStatusText("Starting microphone...");
         await start();
+
         if (mountedRef.current) {
           setStatusText("Recording in progress...");
         }
@@ -199,6 +205,7 @@ export default function MockInterviewScreen({ route, navigation }) {
       }
     } catch (error) {
       console.log("Mic error:", error);
+
       if (!mountedRef.current) return;
 
       setIsLoadingNext(false);
@@ -211,69 +218,79 @@ export default function MockInterviewScreen({ route, navigation }) {
     }
   };
 
+  const handleSessionCompletion = async () => {
+    try {
+      setStatusText("Fetching final feedback...");
+
+      const feedback = await getInterviewFeedback(sessionId);
+
+      if (!mountedRef.current) return;
+
+      setFinalFeedback(feedback);
+    } catch (error) {
+      console.log("Feedback fetch error:", error);
+    }
+
+    if (!mountedRef.current) return;
+
+    setSessionFinished(true);
+    setIsLoadingNext(false);
+    setStatusText("Session complete.");
+
+    await speakTextAsync("Your mock interview session is completed.");
+
+    if (!mountedRef.current) return;
+
+    Alert.alert(
+      "Session Complete",
+      "You finished the mock interview.",
+      [
+        {
+          text: "Go Back",
+          onPress: () => navigation.goBack(),
+        },
+      ]
+    );
+  };
+
   const handleBackendFlow = async (audioUri) => {
     try {
       setStatusText("Sending answer to backend...");
 
       const data = await submitInterviewAnswer({
         audioUri,
-        sessionType: "Mock",
-        questionNumber: questionIndex,
         sessionId,
-        candidateId,
-        resumeId,
       });
 
       if (!mountedRef.current) return;
 
-      const backendFeedback = data.feedbackText || "";
-      const nextQuestion = data.nextQuestionText || "";
-      const nextQuestionNumber = data.questionNumber || questionIndex + 1;
-      const completed = !!data.isSessionComplete;
-
       setSeconds(0);
 
-      if (backendFeedback) {
-        await speakTextAsync(backendFeedback);
-      } else {
-        await speakTextAsync("Good answer. Let's move to the next question.");
-      }
-
-      if (!mountedRef.current) return;
-
-      if (completed) {
-        setSessionFinished(true);
-        setIsLoadingNext(false);
-        setStatusText("Session complete.");
-        await speakTextAsync("Your mock interview session is completed.");
-
-        if (!mountedRef.current) return;
-
-        Alert.alert("Session Complete", "You finished the mock interview.", [
-          {
-            text: "Go Back",
-            onPress: () => navigation.goBack(),
-          },
-        ]);
+      if (data.sessionComplete) {
+        await handleSessionCompletion();
         return;
       }
 
-      setQuestionIndex(nextQuestionNumber);
-      setQuestionText(nextQuestion);
+      const nextQuestionText = data.nextQuestion?.text || "";
 
+      setQuestionIndex((prev) => prev + 1);
+      setQuestionText(nextQuestionText);
       setStatusText("Playing next question...");
-      await speakQuestion(nextQuestion || "Next question.");
+
+      await speakQuestion(nextQuestionText || "Next question.");
 
       if (mountedRef.current) {
         setIsLoadingNext(false);
       }
     } catch (error) {
       console.log("Backend error:", error);
+
       if (!mountedRef.current) return;
 
       setIsLoadingNext(false);
       setStatusText("Failed to process answer.");
-      Alert.alert("Error", "Failed to process recording.");
+
+      Alert.alert("Error", error?.message || "Failed to process recording.");
     }
   };
 
@@ -281,6 +298,7 @@ export default function MockInterviewScreen({ route, navigation }) {
     if (!questionText || isLoadingNext || isRecording || isSpeaking || sessionFinished) {
       return;
     }
+
     await speakQuestion(questionText);
   };
 
