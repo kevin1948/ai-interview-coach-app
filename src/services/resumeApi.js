@@ -1,5 +1,11 @@
-const USE_MOCK_API = true;
-const API_BASE_URL = "http://localhost:8000";
+import { USE_MOCK_API, API_BASE_URL } from "../config/apiConfig";
+
+/*
+Resume API
+Handles:
+- resume upload
+- resume parsing
+*/
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -15,8 +21,8 @@ const uploadResumeMock = async (file) => {
       id: "mock-resume-456",
       filename: file?.name || "resume.pdf",
       parsed_data: {
-        name: "user name",
-        email: "user@example.com",
+        name: "Kevin Joshua",
+        email: "kevin@example.com",
         phone: "+91 9876543210",
         skills: ["React Native", "Java", "DSA", "JavaScript"],
         education: "B.E. Computer Science Engineering",
@@ -80,9 +86,7 @@ export const parseResume = async (resumeId) => {
   }
 
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/resume/parse/${resumeId}`
-    );
+    const response = await fetch(`${API_BASE_URL}/api/resume/parse/${resumeId}`);
 
     const data = await response.json();
 

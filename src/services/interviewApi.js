@@ -1,7 +1,18 @@
 import { Platform } from "react-native";
+import {
+  USE_MOCK_API,
+  FULL_API_BASE_URL,
+  API_BASE_URL,
+} from "../config/apiConfig";
 
-const USE_MOCK_API = true;
-const API_BASE_URL = "http://localhost:8000";
+/*
+Interview API
+Used by Mock Interview flow
+Handles:
+- startInterviewSession()
+- submitInterviewAnswer()
+- getInterviewFeedback()
+*/
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -47,7 +58,7 @@ const parseJsonSafely = async (response) => {
 
   try {
     return JSON.parse(text);
-  } catch (error) {
+  } catch {
     throw new Error("Server returned an invalid JSON response.");
   }
 };
@@ -292,7 +303,7 @@ export const startInterviewSession = async ({ candidateId }) => {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/interviews/sessions`, {
+    const response = await fetch(`${FULL_API_BASE_URL}/interviews/sessions`, {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -336,7 +347,7 @@ export const submitInterviewAnswer = async ({ audioUri, sessionId }) => {
     }
 
     const response = await fetch(
-      `${API_BASE_URL}/api/v1/interviews/sessions/${sessionId}/answer`,
+      `${FULL_API_BASE_URL}/interviews/sessions/${sessionId}/answer`,
       {
         method: "POST",
         headers: {
@@ -369,7 +380,7 @@ export const getInterviewFeedback = async (sessionId) => {
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/v1/interviews/sessions/${sessionId}/feedback`,
+      `${FULL_API_BASE_URL}/interviews/sessions/${sessionId}/feedback`,
       {
         method: "GET",
         headers: {

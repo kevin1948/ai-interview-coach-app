@@ -1,7 +1,17 @@
 import { Platform } from "react-native";
+import {
+  USE_MOCK_API,
+  FULL_API_BASE_URL,
+  API_BASE_URL,
+} from "../config/apiConfig";
 
-const USE_MOCK_API = true;
-const API_BASE_URL = "http://localhost:8000";
+/*
+Practice API
+Used by Interview Coach flow
+Handles:
+- startPracticeQuestion()
+- submitPracticeAnswer()
+*/
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -85,7 +95,7 @@ const parseJsonSafely = async (response) => {
 
   try {
     return JSON.parse(text);
-  } catch (error) {
+  } catch {
     throw new Error("Server returned an invalid JSON response.");
   }
 };
@@ -245,7 +255,7 @@ export const startPracticeQuestion = async () => {
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/v1/practice/questions/start`,
+      `${FULL_API_BASE_URL}/practice/questions/start`,
       {
         method: "GET",
         headers: {
@@ -292,7 +302,7 @@ export const submitPracticeAnswer = async ({ audioUri, answerText = "" }) => {
       formData.append("answer_text", answerText);
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/practice/answer`, {
+    const response = await fetch(`${FULL_API_BASE_URL}/practice/answer`, {
       method: "POST",
       headers: {
         Accept: "application/json",
