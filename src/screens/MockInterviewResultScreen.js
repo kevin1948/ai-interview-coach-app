@@ -10,48 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-const MOCK_RESULT_DATA = {
-  overallScore: 85,
-  categories: [
-    { name: "Communication", score: 90, icon: "chatbubbles-outline" },
-    { name: "Technical Knowledge", score: 82, icon: "code-slash-outline" },
-    { name: "Problem Solving", score: 88, icon: "bulb-outline" },
-    { name: "Confidence", score: 80, icon: "shield-checkmark-outline" },
-  ],
-  feedback: [
-    {
-      type: "strength",
-      title: "Strong Communication",
-      description:
-        "You articulated your thoughts clearly and maintained good structure in your responses.",
-    },
-    {
-      type: "strength",
-      title: "Technical Depth",
-      description:
-        "Demonstrated solid understanding of core concepts with relevant examples.",
-    },
-    {
-      type: "improvement",
-      title: "Pace of Speech",
-      description:
-        "Consider slowing down slightly to emphasize key points more effectively.",
-    },
-    {
-      type: "improvement",
-      title: "STAR Method",
-      description:
-        "Try using the STAR method more consistently for behavioral questions.",
-    },
-  ],
-  questions: [
-    { question: "Tell me about yourself", score: 88 },
-    { question: "Describe a challenging project", score: 85 },
-    { question: "How do you handle pressure?", score: 82 },
-    { question: "Where do you see yourself in 5 years?", score: 90 },
-    { question: "Why should we hire you?", score: 80 },
-  ],
-};
+
 
 export default function MockInterviewResultScreen({ route, navigation }) {
   const session = route?.params?.session || {};

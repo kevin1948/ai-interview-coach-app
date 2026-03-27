@@ -9,9 +9,6 @@ Handles:
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * MOCK: Upload resume
- */
 const uploadResumeMock = async (file) => {
   await wait(1000);
 
@@ -31,9 +28,6 @@ const uploadResumeMock = async (file) => {
   };
 };
 
-/**
- * MOCK: Parse resume
- */
 const parseResumeMock = async (resumeId) => {
   await wait(700);
 
@@ -53,24 +47,65 @@ const parseResumeMock = async (resumeId) => {
   };
 };
 
-export const uploadResume = async (file) => {
+const parseJsonSafely = async (response) => {
+  const text = await response.text();
+
+  console.log("Resume API raw response text:", text);
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+};
+
+export const uploadResume = async (file, userId = "") => {
   if (USE_MOCK_API) {
     return uploadResumeMock(file);
   }
 
   try {
     const formData = new FormData();
-    formData.append("file", file);
 
-    const response = await fetch(`${API_BASE_URL}/api/resume/upload`, {
+    const nativeFile = {
+      uri: file.uri,
+      name: file.name || "resume.pdf",
+      type: "application/pdf",
+    };
+
+    formData.append("file", nativeFile);
+
+    const url = userId
+      ? `${API_BASE_URL}/api/resume/upload?user_id=${encodeURIComponent(
+          String(userId)
+        )}`
+      : `${API_BASE_URL}/api/resume/upload`;
+
+    console.log("Resume upload URL:", url);
+    console.log("Resume upload file:", nativeFile);
+
+    const response = await fetch(url, {
       method: "POST",
       body: formData,
     });
 
-    const data = await response.json();
+    const data = await parseJsonSafely(response);
+
+    console.log("Resume upload status:", response.status);
+    console.log("Resume upload parsed response:", data);
 
     if (!response.ok) {
-      throw new Error(data.message || "Failed to upload resume.");
+      throw new Error(
+        data?.detail ||
+          data?.message ||
+          data?.error ||
+          data?.raw ||
+          "Failed to upload resume."
+      );
     }
 
     return data;
@@ -87,11 +122,16 @@ export const parseResume = async (resumeId) => {
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/resume/parse/${resumeId}`);
-
-    const data = await response.json();
+    const data = await parseJsonSafely(response);
 
     if (!response.ok) {
-      throw new Error(data.message || "Failed to parse resume.");
+      throw new Error(
+        data?.detail ||
+          data?.message ||
+          data?.error ||
+          data?.raw ||
+          "Failed to parse resume."
+      );
     }
 
     return data;

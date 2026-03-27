@@ -5,50 +5,15 @@ import {
   API_BASE_URL,
 } from "../config/apiConfig";
 
-/*
-Interview API
-Used by Mock Interview flow
-Handles:
-- startInterviewSession()
-- submitInterviewAnswer()
-- getInterviewFeedback()
-*/
-
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const MOCK_QUESTIONS = [
-  {
-    id: "q1",
-    text: "Tell me about yourself.",
-    options: [],
-  },
-  {
-    id: "q2",
-    text: "Why do you want to join this company?",
-    options: [],
-  },
-  {
-    id: "q3",
-    text: "Describe a challenging project you worked on.",
-    options: [],
-  },
-  {
-    id: "q4",
-    text: "What are your strengths and weaknesses?",
-    options: [],
-  },
-  {
-    id: "q5",
-    text: "Where do you see yourself in five years?",
-    options: [],
-  },
+  { id: "q1", text: "Tell me about yourself.", options: [] },
+  { id: "q2", text: "Why do you want to join this company?", options: [] },
 ];
 
 const mockSessionStore = {};
 
-/**
- * Common helper to parse JSON safely
- */
 const parseJsonSafely = async (response) => {
   const text = await response.text();
 
@@ -63,11 +28,8 @@ const parseJsonSafely = async (response) => {
   }
 };
 
-/**
- * Common helper for network errors
- */
 const handleNetworkError = (error) => {
-  console.error("API error:", error);
+  console.error("Interview API error:", error);
 
   if (
     error instanceof TypeError &&
@@ -75,7 +37,7 @@ const handleNetworkError = (error) => {
       error.message.includes("Network request failed"))
   ) {
     throw new Error(
-      "Cannot connect to server. Please ensure the backend is running and API_BASE_URL is correct: " +
+      "Cannot connect to server. Please ensure the backend is running at " +
         API_BASE_URL
     );
   }
@@ -83,9 +45,6 @@ const handleNetworkError = (error) => {
   throw error;
 };
 
-/**
- * Get audio file ready for upload (handles web vs native)
- */
 const getAudioFileForUpload = async (audioUri) => {
   if (!audioUri) {
     throw new Error("No audio URI found.");
@@ -131,28 +90,21 @@ const getAudioFileForUpload = async (audioUri) => {
       type: mimeType,
     },
     fileName,
-    mimeType,
   };
 };
 
-/**
- * Normalize backend question object
- */
 const normalizeQuestion = (question) => {
-  if (!question) {
-    return null;
-  }
+  if (!question) return null;
 
   return {
     id: question.id ?? "",
     text: question.text ?? "",
     options: Array.isArray(question.options) ? question.options : [],
+    difficulty: question.difficulty ?? "",
+    skillId: question.skill_id ?? "",
   };
 };
 
-/**
- * Normalize session start response
- */
 const normalizeStartSessionResponse = (data) => {
   return {
     sessionId: data.session_id ?? "",
@@ -161,9 +113,6 @@ const normalizeStartSessionResponse = (data) => {
   };
 };
 
-/**
- * Normalize answer submit response
- */
 const normalizeSubmitAnswerResponse = (data) => {
   return {
     sessionComplete: Boolean(data.session_complete),
@@ -174,19 +123,13 @@ const normalizeSubmitAnswerResponse = (data) => {
   };
 };
 
-/**
- * MOCK: Start mock interview session
- */
 const startInterviewSessionMock = async ({ candidateId }) => {
-  await wait(900);
+  await wait(800);
 
   const sessionId = `mock-session-${Date.now()}`;
-
   mockSessionStore[sessionId] = {
-    userId: String(candidateId || "mock-user"),
     currentIndex: 0,
-    answers: [],
-    startedAt: new Date().toISOString(),
+    userId: candidateId,
   };
 
   return {
@@ -196,25 +139,11 @@ const startInterviewSessionMock = async ({ candidateId }) => {
   };
 };
 
-/**
- * MOCK: Submit answer
- */
-const submitInterviewAnswerMock = async ({ audioUri, sessionId }) => {
-  await wait(1200);
-
-  if (!mockSessionStore[sessionId]) {
-    throw new Error("Mock session not found.");
-  }
+const submitInterviewAnswerMock = async ({ sessionId }) => {
+  await wait(900);
 
   const session = mockSessionStore[sessionId];
-
-  if (audioUri) {
-    session.answers.push({
-      questionId: MOCK_QUESTIONS[session.currentIndex]?.id || "",
-      audioUri,
-      submittedAt: new Date().toISOString(),
-    });
-  }
+  if (!session) throw new Error("Mock session not found.");
 
   const nextIndex = session.currentIndex + 1;
   session.currentIndex = nextIndex;
@@ -223,7 +152,7 @@ const submitInterviewAnswerMock = async ({ audioUri, sessionId }) => {
     return {
       sessionComplete: true,
       nextQuestion: null,
-      transcription: "This is a mock transcription of the final answer.",
+      transcription: "Mock transcription",
       confidenceScore: 0.91,
     };
   }
@@ -231,72 +160,20 @@ const submitInterviewAnswerMock = async ({ audioUri, sessionId }) => {
   return {
     sessionComplete: false,
     nextQuestion: MOCK_QUESTIONS[nextIndex],
-    transcription: "This is a mock transcription of your answer.",
+    transcription: "Mock transcription",
     confidenceScore: 0.88,
   };
 };
 
-/**
- * MOCK: Final feedback
- */
 const getInterviewFeedbackMock = async (sessionId) => {
-  await wait(800);
-
-  const session = mockSessionStore[sessionId];
-
-  if (!session) {
-    throw new Error("Mock feedback session not found.");
-  }
+  await wait(500);
 
   return {
     session_id: sessionId,
-    overall_score: 82,
-    summary:
-      "Good communication and confidence. Answers were clear, but could be improved with stronger examples and more structured storytelling.",
-    strengths: [
-      "Good speaking confidence",
-      "Clear basic communication",
-      "Attempted all questions",
-    ],
-    improvements: [
-      "Use more project-based examples",
-      "Answer with STAR structure",
-      "Be more precise in strengths and weaknesses",
-    ],
-    question_feedback: [
-      {
-        question: "Tell me about yourself.",
-        score: 8,
-        feedback: "Good introduction, but make it more structured.",
-      },
-      {
-        question: "Why do you want to join this company?",
-        score: 8,
-        feedback: "Decent answer, but make it company-specific.",
-      },
-      {
-        question: "Describe a challenging project you worked on.",
-        score: 9,
-        feedback: "Strong answer. Add measurable impact for even better quality.",
-      },
-      {
-        question: "What are your strengths and weaknesses?",
-        score: 7,
-        feedback: "Good attempt, but weaknesses should include improvement action.",
-      },
-      {
-        question: "Where do you see yourself in five years?",
-        score: 9,
-        feedback: "Well answered and aligned with growth mindset.",
-      },
-    ],
+    feedback: "Good communication. Improve structure and examples.",
   };
 };
 
-/**
- * Start mock interview session
- * POST /api/v1/interviews/sessions
- */
 export const startInterviewSession = async ({ candidateId }) => {
   if (USE_MOCK_API) {
     return startInterviewSessionMock({ candidateId });
@@ -326,24 +203,30 @@ export const startInterviewSession = async ({ candidateId }) => {
   }
 };
 
-/**
- * Submit interview answer
- * POST /api/v1/interviews/sessions/{session_id}/answer
- */
-export const submitInterviewAnswer = async ({ audioUri, sessionId }) => {
+export const submitInterviewAnswer = async ({
+  audioUri,
+  sessionId,
+  answerText = "",
+}) => {
   if (USE_MOCK_API) {
-    return submitInterviewAnswerMock({ audioUri, sessionId });
+    return submitInterviewAnswerMock({ sessionId });
   }
 
   try {
-    const { file, fileName } = await getAudioFileForUpload(audioUri);
-
     const formData = new FormData();
 
-    if (Platform.OS === "web") {
-      formData.append("audio", file, fileName);
-    } else {
-      formData.append("audio", file);
+    if (answerText) {
+      formData.append("user_answer", answerText);
+    }
+
+    if (audioUri) {
+      const { file, fileName } = await getAudioFileForUpload(audioUri);
+
+      if (Platform.OS === "web") {
+        formData.append("file", file, fileName);
+      } else {
+        formData.append("file", file);
+      }
     }
 
     const response = await fetch(
@@ -369,10 +252,6 @@ export const submitInterviewAnswer = async ({ audioUri, sessionId }) => {
   }
 };
 
-/**
- * Get final feedback
- * GET /api/v1/interviews/sessions/{session_id}/feedback
- */
 export const getInterviewFeedback = async (sessionId) => {
   if (USE_MOCK_API) {
     return getInterviewFeedbackMock(sessionId);

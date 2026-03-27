@@ -5,14 +5,6 @@ import {
   API_BASE_URL,
 } from "../config/apiConfig";
 
-/*
-Practice API
-Used by Interview Coach flow
-Handles:
-- startPracticeQuestion()
-- submitPracticeAnswer()
-*/
-
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const MOCK_PRACTICE_QUESTIONS = [
@@ -20,72 +12,31 @@ const MOCK_PRACTICE_QUESTIONS = [
     id: "p1",
     text: "Tell me about yourself.",
     options: [],
-    difficulty: "BEGINNER",
+    difficulty: "easy",
     skill_id: "intro",
   },
   {
     id: "p2",
     text: "Why should we hire you?",
     options: [],
-    difficulty: "BEGINNER",
+    difficulty: "easy",
     skill_id: "intro",
-  },
-  {
-    id: "p3",
-    text: "Describe a challenging project you worked on.",
-    options: [],
-    difficulty: "INTERMEDIATE",
-    skill_id: "projects",
-  },
-  {
-    id: "p4",
-    text: "What are your strengths and weaknesses?",
-    options: [],
-    difficulty: "INTERMEDIATE",
-    skill_id: "behavioral",
-  },
-  {
-    id: "p5",
-    text: "Where do you see yourself in five years?",
-    options: [],
-    difficulty: "BEGINNER",
-    skill_id: "career",
   },
 ];
 
 const MOCK_FEEDBACK = [
   {
     isCorrect: true,
-    feedback:
-      "Good start. Your answer is clear, but make it more structured by covering present, past, and future in that order.",
+    feedback: "Good start. Make it more structured.",
   },
   {
     isCorrect: true,
-    feedback:
-      "Nice answer. Mention two strong qualities and connect them to how they help the company.",
-  },
-  {
-    isCorrect: true,
-    feedback:
-      "Strong attempt. Add measurable impact like numbers, performance, or outcomes to make the answer more convincing.",
-  },
-  {
-    isCorrect: true,
-    feedback:
-      "Decent response. For weaknesses, mention how you are actively improving so it sounds mature and professional.",
-  },
-  {
-    isCorrect: true,
-    feedback:
-      "Good answer. Your growth mindset is clear, and the response aligns well with long-term career development.",
+    feedback: "Nice answer. Add stronger proof.",
   },
 ];
 
 let mockPracticeIndex = 0;
 
-/**
- * Common helper to parse JSON safely
- */
 const parseJsonSafely = async (response) => {
   const text = await response.text();
 
@@ -96,13 +47,10 @@ const parseJsonSafely = async (response) => {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error("Server returned an invalid JSON response.");
+    return { raw: text };
   }
 };
 
-/**
- * Common helper for network errors
- */
 const handleNetworkError = (error) => {
   console.error("Practice API error:", error);
 
@@ -112,7 +60,7 @@ const handleNetworkError = (error) => {
       error.message.includes("Network request failed"))
   ) {
     throw new Error(
-      "Cannot connect to server. Please ensure the backend is running and API_BASE_URL is correct: " +
+      "Cannot connect to server. Please ensure the backend is running at " +
         API_BASE_URL
     );
   }
@@ -120,9 +68,6 @@ const handleNetworkError = (error) => {
   throw error;
 };
 
-/**
- * Get audio file ready for upload (handles web vs native)
- */
 const getAudioFileForUpload = async (audioUri) => {
   if (!audioUri) {
     throw new Error("No audio URI found.");
@@ -135,30 +80,29 @@ const getAudioFileForUpload = async (audioUri) => {
     return {
       file: blob,
       fileName: "answer.webm",
-      mimeType: blob.type || "audio/webm",
     };
   }
 
   const lowerUri = audioUri.toLowerCase();
 
-  let mimeType = "audio/m4a";
   let fileName = "answer.m4a";
+  let mimeType = "audio/m4a";
 
   if (lowerUri.endsWith(".wav")) {
-    mimeType = "audio/wav";
     fileName = "answer.wav";
+    mimeType = "audio/wav";
   } else if (lowerUri.endsWith(".mp3")) {
-    mimeType = "audio/mpeg";
     fileName = "answer.mp3";
+    mimeType = "audio/mpeg";
   } else if (lowerUri.endsWith(".aac")) {
-    mimeType = "audio/aac";
     fileName = "answer.aac";
+    mimeType = "audio/aac";
   } else if (lowerUri.endsWith(".caf")) {
-    mimeType = "audio/x-caf";
     fileName = "answer.caf";
+    mimeType = "audio/x-caf";
   } else if (lowerUri.endsWith(".webm")) {
-    mimeType = "audio/webm";
     fileName = "answer.webm";
+    mimeType = "audio/webm";
   }
 
   return {
@@ -168,14 +112,11 @@ const getAudioFileForUpload = async (audioUri) => {
       type: mimeType,
     },
     fileName,
-    mimeType,
   };
 };
 
 const normalizeQuestion = (question) => {
-  if (!question) {
-    return null;
-  }
+  if (!question) return null;
 
   return {
     id: question.id ?? "",
@@ -195,33 +136,21 @@ const normalizePracticeAnswerResponse = (data) => {
   };
 };
 
-/**
- * MOCK: Start practice flow
- */
 const startPracticeQuestionMock = async () => {
-  await wait(700);
+  await wait(500);
   mockPracticeIndex = 0;
-
   return normalizeQuestion(MOCK_PRACTICE_QUESTIONS[0]);
 };
 
-/**
- * MOCK: Submit practice answer
- */
-const submitPracticeAnswerMock = async ({ audioUri }) => {
-  await wait(1100);
+const submitPracticeAnswerMock = async () => {
+  await wait(800);
 
   const currentIndex = mockPracticeIndex;
   const nextIndex = currentIndex + 1;
-
   const feedbackObj = MOCK_FEEDBACK[currentIndex] || {
     isCorrect: true,
-    feedback: "Good attempt. Keep your answer more structured and specific.",
+    feedback: "Good attempt.",
   };
-
-  if (audioUri) {
-    // mock path only; no upload needed
-  }
 
   if (nextIndex >= MOCK_PRACTICE_QUESTIONS.length) {
     mockPracticeIndex = 0;
@@ -244,30 +173,43 @@ const submitPracticeAnswerMock = async ({ audioUri }) => {
   };
 };
 
-/**
- * Start practice question
- * GET /api/v1/practice/questions/start
- */
-export const startPracticeQuestion = async () => {
+export const startPracticeQuestion = async ({ userId, difficulty = "" }) => {
   if (USE_MOCK_API) {
     return startPracticeQuestionMock();
   }
 
   try {
-    const response = await fetch(
-      `${FULL_API_BASE_URL}/practice/questions/start`,
-      {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-      }
-    );
+    const params = new URLSearchParams();
+    params.append("user_id", String(userId));
+    if (difficulty) {
+      params.append("difficulty", difficulty);
+    }
+
+    const url = `${FULL_API_BASE_URL}/practice/questions/start?${params.toString()}`;
+
+    console.log("Practice start URL:", url);
+    console.log("Practice start userId:", userId);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    });
 
     const data = await parseJsonSafely(response);
 
+    console.log("Practice start status:", response.status);
+    console.log("Practice start response:", data);
+
     if (!response.ok) {
-      throw new Error(data.message || "Failed to start practice question.");
+      throw new Error(
+        data?.detail ||
+          data?.message ||
+          data?.error ||
+          data?.raw ||
+          "Failed to start practice question."
+      );
     }
 
     return normalizeQuestion(data);
@@ -276,30 +218,34 @@ export const startPracticeQuestion = async () => {
   }
 };
 
-/**
- * Submit practice answer
- * POST /api/v1/practice/answer
- */
-export const submitPracticeAnswer = async ({ audioUri, answerText = "" }) => {
+export const submitPracticeAnswer = async ({
+  audioUri,
+  userId,
+  questionId,
+  answerText = "",
+}) => {
   if (USE_MOCK_API) {
-    return submitPracticeAnswerMock({ audioUri, answerText });
+    return submitPracticeAnswerMock();
   }
 
   try {
     const formData = new FormData();
 
+    formData.append("user_id", String(userId));
+    formData.append("question_id", String(questionId));
+
+    if (answerText) {
+      formData.append("user_answer", answerText);
+    }
+
     if (audioUri) {
       const { file, fileName } = await getAudioFileForUpload(audioUri);
 
       if (Platform.OS === "web") {
-        formData.append("audio", file, fileName);
+        formData.append("file", file, fileName);
       } else {
-        formData.append("audio", file);
+        formData.append("file", file);
       }
-    }
-
-    if (answerText) {
-      formData.append("answer_text", answerText);
     }
 
     const response = await fetch(`${FULL_API_BASE_URL}/practice/answer`, {
@@ -312,8 +258,17 @@ export const submitPracticeAnswer = async ({ audioUri, answerText = "" }) => {
 
     const data = await parseJsonSafely(response);
 
+    console.log("Practice answer status:", response.status);
+    console.log("Practice answer response:", data);
+
     if (!response.ok) {
-      throw new Error(data.message || "Failed to submit practice answer.");
+      throw new Error(
+        data?.detail ||
+          data?.message ||
+          data?.error ||
+          data?.raw ||
+          "Failed to submit practice answer."
+      );
     }
 
     return normalizePracticeAnswerResponse(data);

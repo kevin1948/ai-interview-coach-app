@@ -21,6 +21,8 @@ import {
 } from "../services/practiceApi";
 
 export default function InterviewScreen({ route, navigation }) {
+  const candidateId = route?.params?.candidateId || "";
+  console.log("InterviewScreen candidateId:", candidateId);
   const sessionTitle = route?.params?.sessionTitle || "Interview Coach";
 
   const { isRecording, bars, start, stop } = useRealtimeWaveform();
@@ -31,8 +33,11 @@ export default function InterviewScreen({ route, navigation }) {
   const [sessionFinished, setSessionFinished] = useState(false);
 
   const [questionIndex, setQuestionIndex] = useState(1);
+  const [questionId, setQuestionId] = useState("");
   const [questionText, setQuestionText] = useState("");
-  const [statusText, setStatusText] = useState("Preparing your practice session...");
+  const [statusText, setStatusText] = useState(
+    "Preparing your practice session..."
+  );
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -151,13 +156,20 @@ export default function InterviewScreen({ route, navigation }) {
 
   const initializeSession = async () => {
     try {
+      if (!candidateId) {
+        throw new Error("Candidate ID is missing. Please upload resume first.");
+      }
+
       setStatusText("Loading first interview question...");
 
-      const data = await startPracticeQuestion();
+      const data = await startPracticeQuestion({
+        userId: candidateId,
+      });
 
       if (!mountedRef.current) return;
 
       setQuestionIndex(1);
+      setQuestionId(data?.id || "");
       setQuestionText(data?.text || "");
       setSessionFinished(false);
 
@@ -216,10 +228,20 @@ export default function InterviewScreen({ route, navigation }) {
 
   const handleBackendFlow = async (audioUri) => {
     try {
+      if (!candidateId) {
+        throw new Error("Candidate ID missing.");
+      }
+
+      if (!questionId) {
+        throw new Error("Question ID missing.");
+      }
+
       setStatusText("Sending answer to backend...");
 
       const data = await submitPracticeAnswer({
         audioUri,
+        userId: candidateId,
+        questionId,
       });
 
       if (!mountedRef.current) return;
@@ -258,8 +280,10 @@ export default function InterviewScreen({ route, navigation }) {
       }
 
       const nextQuestionText = data.nextQuestion?.text || "";
+      const nextQuestionId = data.nextQuestion?.id || "";
 
       setQuestionIndex((prev) => prev + 1);
+      setQuestionId(nextQuestionId);
       setQuestionText(nextQuestionText);
       setStatusText("Playing next question...");
 
@@ -284,7 +308,13 @@ export default function InterviewScreen({ route, navigation }) {
   };
 
   const handleReplayQuestion = async () => {
-    if (!questionText || isLoadingNext || isRecording || isSpeaking || sessionFinished) {
+    if (
+      !questionText ||
+      isLoadingNext ||
+      isRecording ||
+      isSpeaking ||
+      sessionFinished
+    ) {
       return;
     }
 
@@ -333,7 +363,11 @@ export default function InterviewScreen({ route, navigation }) {
                 disabled={isRecording || isLoadingNext || isSpeaking}
                 activeOpacity={0.85}
               >
-                <Ionicons name="volume-high-outline" size={18} color="#0F172A" />
+                <Ionicons
+                  name="volume-high-outline"
+                  size={18}
+                  color="#0F172A"
+                />
               </TouchableOpacity>
             </View>
           </View>

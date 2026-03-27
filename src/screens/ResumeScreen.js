@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,19 @@ export default function ResumeScreen({ navigation }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [parsedResume, setParsedResume] = useState(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const resetStoredResumeState = async () => {
+      try {
+        await AsyncStorage.removeItem("candidateId");
+        await AsyncStorage.removeItem("resumeId");
+      } catch (error) {
+        console.log("Failed to clear stored resume state:", error);
+      }
+    };
+
+    resetStoredResumeState();
+  }, []);
 
   const handleFileSelect = async (file) => {
     if (!file) return;
@@ -49,17 +62,21 @@ export default function ResumeScreen({ navigation }) {
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      Alert.alert("No File Selected", "Please select a PDF resume first.", [
-        { text: "OK" },
-      ]);
+      Alert.alert("No File Selected", "Please select a PDF resume first.");
       return;
     }
+
+    let progressInterval;
 
     try {
       setUploading(true);
       setUploadProgress(0);
 
-      const progressInterval = setInterval(() => {
+      // Clear previous stored IDs before new upload
+      await AsyncStorage.removeItem("candidateId");
+      await AsyncStorage.removeItem("resumeId");
+
+      progressInterval = setInterval(() => {
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 300);
 
@@ -68,13 +85,13 @@ export default function ResumeScreen({ navigation }) {
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      if (response?.user_id) {
-        await AsyncStorage.setItem("candidateId", response.user_id);
+      if (!response?.user_id || !response?.resume?.id) {
+        throw new Error("Invalid response from resume upload API");
       }
 
-      if (response?.resume?.id) {
-        await AsyncStorage.setItem("resumeId", response.resume.id);
-      }
+      // Store fresh values only after confirmed success
+      await AsyncStorage.setItem("candidateId", response.user_id);
+      await AsyncStorage.setItem("resumeId", response.resume.id);
 
       if (response?.resume) {
         setParsedResume(response.resume);
@@ -91,11 +108,15 @@ export default function ResumeScreen({ navigation }) {
         },
       ]);
     } catch (error) {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+
       setUploadProgress(0);
+
       Alert.alert(
         "Upload Failed",
-        error?.message || "Failed to upload resume. Please try again.",
-        [{ text: "OK" }]
+        error?.message || "Failed to upload resume. Please try again."
       );
     } finally {
       setUploading(false);
@@ -350,7 +371,14 @@ export default function ResumeScreen({ navigation }) {
                 styles.uploadAnotherButton,
                 pressed && styles.uploadAnotherPressed,
               ]}
-              onPress={() => {
+              onPress={async () => {
+                try {
+                  await AsyncStorage.removeItem("candidateId");
+                  await AsyncStorage.removeItem("resumeId");
+                } catch (error) {
+                  console.log("Failed to clear stored resume state:", error);
+                }
+
                 setSelectedFile(null);
                 setUploadProgress(0);
                 setUploadSuccess(false);

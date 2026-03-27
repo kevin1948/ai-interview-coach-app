@@ -29,11 +29,21 @@ export default function HomeScreen({ navigation }) {
       const storedCandidateId = await AsyncStorage.getItem("candidateId");
       const storedResumeId = await AsyncStorage.getItem("resumeId");
 
+      const hasResume = Boolean(
+        storedCandidateId &&
+          storedCandidateId.trim() &&
+          storedResumeId &&
+          storedResumeId.trim()
+      );
+
       setCandidateId(storedCandidateId || "");
       setResumeId(storedResumeId || "");
-      setResumeUploaded(!!storedCandidateId && !!storedResumeId);
+      setResumeUploaded(hasResume);
     } catch (error) {
       console.log("Failed to fetch profile status:", error);
+      setResumeUploaded(false);
+      setCandidateId("");
+      setResumeId("");
     } finally {
       setLoading(false);
     }
@@ -65,7 +75,7 @@ export default function HomeScreen({ navigation }) {
       </Text>
 
       {loading ? (
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color="#2563EB" />
       ) : (
         <>
           <TouchableOpacity
@@ -79,6 +89,7 @@ export default function HomeScreen({ navigation }) {
             style={[styles.button, !resumeUploaded && styles.disabledButton]}
             onPress={handleInterviewCoach}
             disabled={!resumeUploaded}
+            activeOpacity={0.8}
           >
             <Text style={styles.buttonText}>Interview Coach</Text>
           </TouchableOpacity>
@@ -87,6 +98,7 @@ export default function HomeScreen({ navigation }) {
             style={[styles.button, !resumeUploaded && styles.disabledButton]}
             onPress={handleMockInterview}
             disabled={!resumeUploaded}
+            activeOpacity={0.8}
           >
             <Text style={styles.buttonText}>Mock Interview</Text>
           </TouchableOpacity>
@@ -112,6 +124,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
+    color: "#0F172A",
   },
   subtitle: {
     fontSize: 15,

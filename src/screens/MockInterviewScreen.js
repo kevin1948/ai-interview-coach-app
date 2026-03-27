@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -104,7 +105,7 @@ export default function MockInterviewScreen({ route, navigation }) {
     }
 
     return () => pulseLoop?.stop();
-  }, [isRecording]);
+  }, [isRecording, glowAnim, pulseAnim]);
 
   const formattedTime = useMemo(() => {
     const mins = Math.floor(seconds / 60);
@@ -167,6 +168,7 @@ export default function MockInterviewScreen({ route, navigation }) {
       setQuestionIndex(1);
       setQuestionText(data.currentQuestion?.text || "");
       setSessionFinished(false);
+      setFinalFeedback(null);
 
       await speakQuestion(data.currentQuestion?.text || "First question.");
     } catch (error) {
@@ -219,16 +221,24 @@ export default function MockInterviewScreen({ route, navigation }) {
   };
 
   const handleSessionCompletion = async () => {
+    let feedback = null;
+
     try {
       setStatusText("Fetching final feedback...");
 
-      const feedback = await getInterviewFeedback(sessionId);
+      feedback = await getInterviewFeedback(sessionId);
 
       if (!mountedRef.current) return;
 
       setFinalFeedback(feedback);
     } catch (error) {
       console.log("Feedback fetch error:", error);
+
+      if (!mountedRef.current) return;
+
+      setFinalFeedback({
+        feedback: "Session completed, but final feedback could not be loaded.",
+      });
     }
 
     if (!mountedRef.current) return;
@@ -237,20 +247,16 @@ export default function MockInterviewScreen({ route, navigation }) {
     setIsLoadingNext(false);
     setStatusText("Session complete.");
 
-    await speakTextAsync("Your mock interview session is completed.");
+    const spokenFeedback =
+      feedback?.feedback ||
+      feedback?.summary ||
+      "Your mock interview session is completed.";
+
+    await speakTextAsync(spokenFeedback);
 
     if (!mountedRef.current) return;
 
-    Alert.alert(
-      "Session Complete",
-      "You finished the mock interview.",
-      [
-        {
-          text: "Go Back",
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
+    Alert.alert("Session Complete", "Your final feedback is now shown below.");
   };
 
   const handleBackendFlow = async (audioUri) => {
@@ -302,6 +308,13 @@ export default function MockInterviewScreen({ route, navigation }) {
     await speakQuestion(questionText);
   };
 
+  const handlePracticeAgain = () => {
+    navigation.replace("MockInterviewSession", {
+      sessionTitle: "New Mock Interview",
+      candidateId,
+    });
+  };
+
   const assistantStateText = isRecording
     ? "Listening..."
     : isSpeaking
@@ -314,9 +327,19 @@ export default function MockInterviewScreen({ route, navigation }) {
 
   const isWeb = Platform.OS === "web";
 
+  const feedbackText =
+    finalFeedback?.feedback ||
+    finalFeedback?.summary ||
+    finalFeedback?.message ||
+    "";
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.headerBlock}>
           <Text style={styles.screenTitle}>Mock Interview</Text>
           <Text style={styles.screenSubtitle}>{sessionTitle}</Text>
@@ -334,103 +357,145 @@ export default function MockInterviewScreen({ route, navigation }) {
                 <Text style={styles.questionNumberText}>Q{questionIndex}</Text>
               </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.replayButton,
-                  (isRecording || isLoadingNext || isSpeaking) &&
-                    styles.replayButtonDisabled,
-                ]}
-                onPress={handleReplayQuestion}
-                disabled={isRecording || isLoadingNext || isSpeaking}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="volume-high-outline" size={18} color="#0F172A" />
-              </TouchableOpacity>
+              {!sessionFinished && (
+                <TouchableOpacity
+                  style={[
+                    styles.replayButton,
+                    (isRecording || isLoadingNext || isSpeaking) &&
+                      styles.replayButtonDisabled,
+                  ]}
+                  onPress={handleReplayQuestion}
+                  disabled={isRecording || isLoadingNext || isSpeaking}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="volume-high-outline" size={18} color="#0F172A" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
           <Text style={styles.questionText}>
-            {questionText || "Loading question..."}
+            {sessionFinished
+              ? "Mock interview completed successfully."
+              : questionText || "Loading question..."}
           </Text>
         </View>
 
-        <View style={styles.centerSection}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.voiceGlow,
-              isWeb ? styles.voiceGlowWeb : styles.voiceGlowMobile,
-              {
-                opacity: glowAnim,
-                transform: [{ scale: pulseAnim }],
-              },
-            ]}
-          />
+        {!sessionFinished ? (
+          <>
+            <View style={styles.centerSection}>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.voiceGlow,
+                  isWeb ? styles.voiceGlowWeb : styles.voiceGlowMobile,
+                  {
+                    opacity: glowAnim,
+                    transform: [{ scale: pulseAnim }],
+                  },
+                ]}
+              />
 
-          <View
-            style={[
-              styles.voiceOrbOuter,
-              isWeb ? styles.voiceOrbOuterWeb : styles.voiceOrbOuterMobile,
-            ]}
-          >
-            <View
-              style={[
-                styles.voiceOrbInner,
-                isWeb ? styles.voiceOrbInnerWeb : styles.voiceOrbInnerMobile,
-              ]}
-            >
-              <Text style={styles.orbTitle}>Voice Response</Text>
-              <Text style={styles.orbSubTitle}>{assistantStateText}</Text>
+              <View
+                style={[
+                  styles.voiceOrbOuter,
+                  isWeb ? styles.voiceOrbOuterWeb : styles.voiceOrbOuterMobile,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.voiceOrbInner,
+                    isWeb ? styles.voiceOrbInnerWeb : styles.voiceOrbInnerMobile,
+                  ]}
+                >
+                  <Text style={styles.orbTitle}>Voice Response</Text>
+                  <Text style={styles.orbSubTitle}>{assistantStateText}</Text>
 
-              <View style={styles.waveformArea}>
-                <View style={styles.waveformClipper}>
-                  <View
-                    style={[
-                      styles.waveformShell,
-                      isWeb ? styles.waveformShellWeb : styles.waveformShellMobile,
-                    ]}
-                  >
-                    <Waveform bars={bars} />
+                  <View style={styles.waveformArea}>
+                    <View style={styles.waveformClipper}>
+                      <View
+                        style={[
+                          styles.waveformShell,
+                          isWeb ? styles.waveformShellWeb : styles.waveformShellMobile,
+                        ]}
+                      >
+                        <Waveform bars={bars} />
+                      </View>
+                    </View>
                   </View>
                 </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.micButtonFloating,
+                    isRecording && styles.micButtonActive,
+                    (isSpeaking || isLoadingNext || sessionFinished) &&
+                      styles.micButtonDisabled,
+                  ]}
+                  onPress={handleMicPress}
+                  activeOpacity={0.9}
+                  disabled={isSpeaking || isLoadingNext || sessionFinished}
+                >
+                  {isLoadingNext ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Ionicons
+                      name={isRecording ? "stop" : "mic"}
+                      size={30}
+                      color="#fff"
+                    />
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
 
+            <View style={styles.bottomCard}>
+              <View style={styles.timerRow}>
+                <View style={styles.timerPill}>
+                  <Ionicons name="time-outline" size={16} color="#0F172A" />
+                  <Text style={styles.timerText}>{formattedTime}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.statusText}>{statusText}</Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.feedbackSection}>
+            <View style={styles.feedbackCard}>
+              <View style={styles.feedbackHeader}>
+                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                <Text style={styles.feedbackTitle}>Final Feedback</Text>
+              </View>
+
+              <Text style={styles.feedbackBody}>
+                {feedbackText || "No final feedback available."}
+              </Text>
+            </View>
+
+            <View style={styles.completedInfoCard}>
+              <Text style={styles.completedInfoText}>{statusText}</Text>
+            </View>
+
             <TouchableOpacity
-              style={[
-                styles.micButtonFloating,
-                isRecording && styles.micButtonActive,
-                (isSpeaking || isLoadingNext || sessionFinished) &&
-                  styles.micButtonDisabled,
-              ]}
-              onPress={handleMicPress}
-              activeOpacity={0.9}
-              disabled={isSpeaking || isLoadingNext || sessionFinished}
+              style={styles.primaryButton}
+              onPress={handlePracticeAgain}
+              activeOpacity={0.85}
             >
-              {isLoadingNext ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Ionicons
-                  name={isRecording ? "stop" : "mic"}
-                  size={30}
-                  color="#fff"
-                />
-              )}
+              <Ionicons name="refresh" size={18} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>Practice Again</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryButtonText}>Back</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        <View style={styles.bottomCard}>
-          <View style={styles.timerRow}>
-            <View style={styles.timerPill}>
-              <Ionicons name="time-outline" size={16} color="#0F172A" />
-              <Text style={styles.timerText}>{formattedTime}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.statusText}>{statusText}</Text>
-        </View>
-      </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -444,10 +509,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#EEF4FF",
+  },
+
+  contentContainer: {
     paddingHorizontal: 20,
     paddingTop: Platform.OS === "web" ? 20 : 8,
-    paddingBottom: 14,
-    justifyContent: "space-between",
+    paddingBottom: 24,
   },
 
   headerBlock: {
@@ -478,6 +545,7 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
+    marginBottom: 16,
   },
 
   questionTopRow: {
@@ -545,7 +613,6 @@ const styles = StyleSheet.create({
   centerSection: {
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
     minHeight: Platform.OS === "web" ? 360 : 280,
     marginTop: 4,
     marginBottom: 18,
@@ -729,5 +796,87 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: "#64748B",
     fontWeight: "500",
+  },
+
+  feedbackSection: {
+    marginTop: 8,
+  },
+
+  feedbackCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    marginBottom: 14,
+  },
+
+  feedbackHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  feedbackTitle: {
+    marginLeft: 8,
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+
+  feedbackBody: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: "#475569",
+    fontWeight: "500",
+  },
+
+  completedInfoCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+  },
+
+  completedInfoText: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2563EB",
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginBottom: 12,
+  },
+
+  primaryButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  secondaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#64748B",
   },
 });
