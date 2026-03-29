@@ -8,35 +8,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-/**
- * MOCK SESSION DATA (temporary until backend ready)
- */
-const MOCK_SESSIONS = [
-  {
-    id: "session-1",
-    title: "Frontend Developer Mock Interview",
-    date: "2026-03-23T12:00:00Z",
-    questionsAnswered: 5,
-    totalQuestions: 5,
-    status: "completed",
-    score: 82,
-  },
-  {
-    id: "session-2",
-    title: "React Native Mock Interview",
-    date: "2026-03-21T15:30:00Z",
-    questionsAnswered: 3,
-    totalQuestions: 5,
-    status: "incomplete",
-    score: null,
-  },
-];
+import { getMockInterviewSessions } from "../services/mockInterviewApi";
 
 export default function MockInterviewListScreen({ navigation }) {
   const [sessions, setSessions] = useState([]);
@@ -49,11 +27,26 @@ export default function MockInterviewListScreen({ navigation }) {
     }, [])
   );
 
-  /**
-   * MOCK FETCH SESSIONS
-   */
+  const mapBackendSessionToUi = (item) => {
+    const responseCount =
+      typeof item?.response_count === "number" ? item.response_count : 0;
+
+    return {
+      id: item?.session_id || "",
+      title: "Mock Interview Session",
+      date: item?.created_at || "",
+      questionsAnswered: responseCount,
+      totalQuestions: 15,
+      status: item?.status === "completed" ? "completed" : "incomplete",
+      score: null,
+      rawStatus: item?.status || "",
+    };
+  };
+
   const fetchSessions = async () => {
     try {
+      setLoading(true);
+
       const candidateId = await AsyncStorage.getItem("candidateId");
 
       if (!candidateId) {
@@ -61,10 +54,20 @@ export default function MockInterviewListScreen({ navigation }) {
         return;
       }
 
-      // backend not ready → using mock data
-      setSessions(MOCK_SESSIONS);
+      const data = await getMockInterviewSessions(candidateId);
+
+      const normalizedSessions = (Array.isArray(data) ? data : [])
+        .map(mapBackendSessionToUi)
+        .filter(
+          (session) =>
+            session.status === "completed" || session.questionsAnswered > 0
+        )
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      setSessions(normalizedSessions);
     } catch (error) {
       console.log("Failed to fetch sessions:", error);
+      Alert.alert("Error", error?.message || "Failed to fetch sessions.");
       setSessions([]);
     } finally {
       setLoading(false);
@@ -77,14 +80,19 @@ export default function MockInterviewListScreen({ navigation }) {
     fetchSessions();
   };
 
-  /**
-   * CONTINUE SESSION
-   */
   const handleSessionPress = async (session) => {
     const candidateId = await AsyncStorage.getItem("candidateId");
 
     if (session.status === "completed") {
-      navigation.navigate("MockInterviewResult", { session });
+      navigation.navigate("MockInterviewResult", {
+        session: {
+          id: session.id,
+          title: session.title,
+          date: session.date,
+          status: session.status,
+          candidateId,
+        },
+      });
     } else {
       navigation.navigate("MockInterviewSession", {
         sessionId: session.id,
@@ -94,9 +102,6 @@ export default function MockInterviewListScreen({ navigation }) {
     }
   };
 
-  /**
-   * START NEW SESSION
-   */
   const handleNewSession = async () => {
     const candidateId = await AsyncStorage.getItem("candidateId");
 
@@ -135,7 +140,6 @@ export default function MockInterviewListScreen({ navigation }) {
             size={20}
             color="#2563EB"
           />
-
           <Text style={styles.sessionTitle}>{item.title}</Text>
         </View>
 
@@ -151,7 +155,6 @@ export default function MockInterviewListScreen({ navigation }) {
               { backgroundColor: getStatusColor(item.status) },
             ]}
           />
-
           <Text
             style={[
               styles.statusText,
@@ -164,10 +167,7 @@ export default function MockInterviewListScreen({ navigation }) {
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.infoText}>
-          📅 {formatDate(item.date)}
-        </Text>
-
+        <Text style={styles.infoText}>📅 {formatDate(item.date)}</Text>
         <Text style={styles.infoText}>
           ❓ {item.questionsAnswered}/{item.totalQuestions} Questions
         </Text>
@@ -183,7 +183,6 @@ export default function MockInterviewListScreen({ navigation }) {
             ? "Tap to view results"
             : "Tap to continue"}
         </Text>
-
         <Ionicons
           name="chevron-forward"
           size={18}
@@ -200,9 +199,7 @@ export default function MockInterviewListScreen({ navigation }) {
         size={64}
         color="#CBD5E1"
       />
-
       <Text style={styles.emptyTitle}>No Sessions Yet</Text>
-
       <Text style={styles.emptySubtitle}>
         Start your first mock interview
       </Text>
@@ -214,10 +211,7 @@ export default function MockInterviewListScreen({ navigation }) {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.screenTitle}>Mock Interviews</Text>
-
-          <Text style={styles.screenSubtitle}>
-            Practice makes perfect
-          </Text>
+          <Text style={styles.screenSubtitle}>Practice makes perfect</Text>
         </View>
 
         {loading ? (

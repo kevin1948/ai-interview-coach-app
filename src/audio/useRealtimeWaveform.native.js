@@ -44,7 +44,6 @@ export default function useRealtimeWaveform() {
 
     if (level < 0) level = 0;
 
-    // higher mobile sensitivity
     level = level / 0.1;
     level = Math.max(0, Math.min(1, level));
     level = Math.pow(level, 0.8);
@@ -52,72 +51,129 @@ export default function useRealtimeWaveform() {
     return smoothLevel(level);
   }
 
-  async function start() {
-    if (!recorderRef.current) {
-      recorderRef.current = new AudioRecorder();
-      recorderRef.current.enableFileOutput();
-    }
-
-    const permission = await AudioManager.requestRecordingPermissions();
-    if (permission !== "Granted") {
-      throw new Error("Microphone permission denied");
-    }
-
-    await AudioManager.setAudioSessionActivity(true);
-
+  function resetBars() {
     smoothedLevelRef.current = 0;
     noiseFloorRef.current = 0.015;
     setBars(Array(BAR_COUNT).fill(0));
-
-    recorderRef.current.onAudioReady(
-      {
-        sampleRate: 16000,
-        bufferLength: 1024,
-        channelCount: 1,
-      },
-      ({ buffer }) => {
-        const channel = buffer.getChannelData(0);
-
-        let sum = 0;
-        for (let i = 0; i < channel.length; i++) {
-          sum += channel[i] * channel[i];
-        }
-
-        const rms = Math.sqrt(sum / channel.length);
-
-        // stronger boost for mobile
-        const boostedRms = rms * 3.2;
-        const level = processVoiceLevel(boostedRms);
-
-        pushBar(level);
-      }
-    );
-
-    const result = recorderRef.current.start();
-
-    if (result?.path) {
-      setAudioFilePath(result.path);
-    }
-
-    setIsRecording(true);
   }
 
-  function stop() {
-    if (!recorderRef.current) return audioFilePath;
+  async function start() {
+    try {
+      console.log("Waveform start: requesting permission");
+      const permission = await AudioManager.requestRecordingPermissions();
+      console.log("Waveform start: permission =", permission);
 
-    const result = recorderRef.current.stop();
-    recorderRef.current.clearOnAudioReady();
+      if (permission !== "Granted") {
+        throw new Error("Microphone permission denied");
+      }
 
-    AudioManager.setAudioSessionActivity(false);
-    setIsRecording(false);
+      if (recorderRef.current) {
+        try {
+          recorderRef.current.clearOnAudioReady?.();
+          recorderRef.current.stop?.();
+        } catch {}
+        recorderRef.current = null;
+      }
 
-    return result?.path || audioFilePath;
+      console.log("Waveform start: creating recorder");
+      const recorder = new AudioRecorder();
+
+      console.log("Waveform start: enabling file output");
+      recorder.enableFileOutput(); // safest known working call
+
+      resetBars();
+
+      console.log("Waveform start: setting onAudioReady");
+      recorder.onAudioReady(
+        {
+          sampleRate: 16000,
+          bufferLength: 1024,
+          channelCount: 1,
+        },
+        ({ buffer }) => {
+          try {
+            const channel = buffer.getChannelData(0);
+
+            let sum = 0;
+            for (let i = 0; i < channel.length; i++) {
+              sum += channel[i] * channel[i];
+            }
+
+            const rms = Math.sqrt(sum / channel.length);
+            const boostedRms = rms * 3.2;
+            const level = processVoiceLevel(boostedRms);
+
+            pushBar(level);
+          } catch (error) {
+            console.log("Waveform processing error:", error);
+          }
+        }
+      );
+
+      recorderRef.current = recorder;
+
+      console.log("Waveform start: starting recorder");
+      const result = recorder.start();
+      console.log("Waveform start: recorder result =", result);
+
+      if (result?.path) {
+        setAudioFilePath(result.path);
+      }
+
+      setIsRecording(true);
+      console.log("Waveform start: success");
+    } catch (error) {
+      console.log("Recorder start error:", error);
+      setIsRecording(false);
+      throw error;
+    }
+  }
+
+  async function stop() {
+    try {
+      console.log("Waveform stop: called");
+
+      if (!recorderRef.current) {
+        return audioFilePath;
+      }
+
+      const recorder = recorderRef.current;
+      recorderRef.current = null;
+
+      try {
+        recorder.clearOnAudioReady?.();
+      } catch (error) {
+        console.log("Waveform stop: clearOnAudioReady error:", error);
+      }
+
+      const result = await Promise.resolve(recorder.stop?.());
+      console.log("Waveform stop: result =", result);
+
+      setIsRecording(false);
+
+      const finalPath = result?.path || audioFilePath || null;
+      if (finalPath) {
+        setAudioFilePath(finalPath);
+      }
+
+      resetBars();
+      return finalPath;
+    } catch (error) {
+      console.log("Recorder stop error:", error);
+      setIsRecording(false);
+      resetBars();
+      return audioFilePath;
+    }
   }
 
   useEffect(() => {
     return () => {
       try {
-        stop();
+        if (recorderRef.current) {
+          recorderRef.current.clearOnAudioReady?.();
+          recorderRef.current.stop?.();
+          recorderRef.current = null;
+        }
       } catch {}
     };
   }, []);

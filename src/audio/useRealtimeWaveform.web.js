@@ -2,6 +2,27 @@ import { useEffect, useRef, useState } from "react";
 
 const BAR_COUNT = 40;
 
+function getSupportedMimeType() {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) {
+    return "";
+  }
+
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+
+  for (const mimeType of candidates) {
+    if (MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType;
+    }
+  }
+
+  return "";
+}
+
 export default function useRealtimeWaveform() {
   const [bars, setBars] = useState(Array(BAR_COUNT).fill(0));
   const [isRecording, setIsRecording] = useState(false);
@@ -16,6 +37,7 @@ export default function useRealtimeWaveform() {
 
   const smoothedLevelRef = useRef(0);
   const noiseFloorRef = useRef(0.015);
+  const currentObjectUrlRef = useRef(null);
 
   function pushBar(level) {
     setBars((prev) => [...prev.slice(1), level]);
@@ -61,7 +83,15 @@ export default function useRealtimeWaveform() {
       throw new Error("Browser microphone API is not supported.");
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
     micStreamRef.current = stream;
 
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -84,7 +114,17 @@ export default function useRealtimeWaveform() {
     recordedChunksRef.current = [];
 
     if (typeof MediaRecorder !== "undefined") {
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = getSupportedMimeType();
+
+      const recorderOptions = {
+        audioBitsPerSecond: 32000,
+      };
+
+      if (mimeType) {
+        recorderOptions.mimeType = mimeType;
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -93,7 +133,7 @@ export default function useRealtimeWaveform() {
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
     }
 
     const tick = () => {
@@ -132,6 +172,7 @@ export default function useRealtimeWaveform() {
       audioContextRef.current = null;
     }
 
+    mediaRecorderRef.current = null;
     setIsRecording(false);
   }
 
@@ -150,11 +191,20 @@ export default function useRealtimeWaveform() {
           cleanupWebAudio();
 
           if (recordedChunksRef.current.length > 0) {
+            const mimeType =
+              mediaRecorder.mimeType || getSupportedMimeType() || "audio/webm";
+
             const blob = new Blob(recordedChunksRef.current, {
-              type: "audio/webm",
+              type: mimeType,
             });
 
+            if (currentObjectUrlRef.current) {
+              URL.revokeObjectURL(currentObjectUrlRef.current);
+              currentObjectUrlRef.current = null;
+            }
+
             const url = URL.createObjectURL(blob);
+            currentObjectUrlRef.current = url;
             setAudioFilePath(url);
             resolve(url);
           } else {
@@ -180,6 +230,11 @@ export default function useRealtimeWaveform() {
     return () => {
       try {
         cleanupWebAudio();
+
+        if (currentObjectUrlRef.current) {
+          URL.revokeObjectURL(currentObjectUrlRef.current);
+          currentObjectUrlRef.current = null;
+        }
       } catch {}
     };
   }, []);

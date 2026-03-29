@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,16 +6,142 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-
-
+import { getMockInterviewResult } from "../services/mockInterviewApi";
 
 export default function MockInterviewResultScreen({ route, navigation }) {
   const session = route?.params?.session || {};
   const sessionTitle = session?.title || "Mock Interview";
-  const result = MOCK_RESULT_DATA;
+  const sessionId = session?.id || "";
+
+  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    fetchResult();
+  }, [sessionId]);
+
+  const fetchResult = async () => {
+    try {
+      if (!sessionId) {
+        throw new Error("Session ID not found.");
+      }
+
+      const data = await getMockInterviewResult(sessionId);
+      setResult(data);
+    } catch (error) {
+      console.log("Failed to fetch mock result:", error);
+      Alert.alert("Error", error?.message || "Failed to load result.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const normalizedResult = useMemo(() => {
+    if (!result) {
+      return {
+        overallScore: 0,
+        categories: [],
+        feedback: [],
+        questions: [],
+      };
+    }
+
+    const responses = Array.isArray(result.responses) ? result.responses : [];
+
+    const confidenceValues = responses
+      .map((item) =>
+        typeof item.confidence_score === "number"
+          ? Math.round(item.confidence_score <= 1
+              ? item.confidence_score * 100
+              : item.confidence_score)
+          : null
+      )
+      .filter((item) => typeof item === "number");
+
+    const overallScore = confidenceValues.length
+      ? Math.round(
+          confidenceValues.reduce((sum, value) => sum + value, 0) /
+            confidenceValues.length
+        )
+      : 0;
+
+    const questions = responses.map((item) => ({
+      question: item.question_text || "Question",
+      score:
+        typeof item.confidence_score === "number"
+          ? Math.round(
+              item.confidence_score <= 1
+                ? item.confidence_score * 100
+                : item.confidence_score
+            )
+          : 0,
+      feedback: item.feedback || "",
+      userAnswer: item.user_answer || "",
+      isCorrect: item.is_correct,
+    }));
+
+    const strongResponses = responses.filter(
+      (item) => item.feedback && !item.feedback.toLowerCase().includes("improve")
+    );
+
+    const improvementResponses = responses.filter(
+      (item) =>
+        item.feedback &&
+        (item.feedback.toLowerCase().includes("improve") ||
+          item.feedback.toLowerCase().includes("missing") ||
+          item.feedback.toLowerCase().includes("add") ||
+          item.feedback.toLowerCase().includes("better"))
+    );
+
+    const feedback = [
+      ...strongResponses.slice(0, 2).map((item) => ({
+        type: "strength",
+        title: "Strong Response",
+        description: item.feedback,
+      })),
+      ...improvementResponses.slice(0, 2).map((item) => ({
+        type: "improvement",
+        title: "Needs Improvement",
+        description: item.feedback,
+      })),
+    ];
+
+    const categories = [
+      {
+        name: "Confidence",
+        icon: "analytics-outline",
+        score: overallScore,
+      },
+      {
+        name: "Correctness",
+        icon: "checkmark-done-outline",
+        score: responses.length
+          ? Math.round(
+              (responses.filter((item) => item.is_correct === true).length /
+                responses.length) *
+                100
+            )
+          : 0,
+      },
+      {
+        name: "Clarity",
+        icon: "chatbubble-ellipses-outline",
+        score: overallScore,
+      },
+    ];
+
+    return {
+      overallScore,
+      categories,
+      feedback,
+      questions,
+    };
+  }, [result]);
 
   const getScoreColor = (score) => {
     if (score >= 85) return "#10B981";
@@ -30,7 +156,7 @@ export default function MockInterviewResultScreen({ route, navigation }) {
   };
 
   const renderScoreRing = () => {
-    const score = result.overallScore;
+    const score = normalizedResult.overallScore;
     const color = getScoreColor(score);
 
     return (
@@ -118,6 +244,17 @@ export default function MockInterviewResultScreen({ route, navigation }) {
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.loaderText}>Loading interview analysis...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
       <ScrollView
@@ -134,13 +271,13 @@ export default function MockInterviewResultScreen({ route, navigation }) {
           {renderScoreRing()}
           <Text style={styles.scoreCardTitle}>Overall Performance</Text>
           <Text style={styles.scoreCardSubtitle}>
-            Based on {result.questions.length} questions answered
+            Based on {normalizedResult.questions.length} questions answered
           </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Category Breakdown</Text>
-          {result.categories.map(renderCategoryCard)}
+          {normalizedResult.categories.map(renderCategoryCard)}
         </View>
 
         <View style={styles.section}>
@@ -148,14 +285,14 @@ export default function MockInterviewResultScreen({ route, navigation }) {
 
           <View style={styles.feedbackSubsection}>
             <Text style={styles.feedbackSubtitle}>Strengths</Text>
-            {result.feedback
+            {normalizedResult.feedback
               .filter((f) => f.type === "strength")
               .map(renderFeedbackItem)}
           </View>
 
           <View style={styles.feedbackSubsection}>
             <Text style={styles.feedbackSubtitle}>Areas for Improvement</Text>
-            {result.feedback
+            {normalizedResult.feedback
               .filter((f) => f.type === "improvement")
               .map(renderFeedbackItem)}
           </View>
@@ -164,14 +301,18 @@ export default function MockInterviewResultScreen({ route, navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Question Results</Text>
           <View style={styles.questionsCard}>
-            {result.questions.map(renderQuestionResult)}
+            {normalizedResult.questions.map(renderQuestionResult)}
           </View>
         </View>
 
         <View style={styles.actionsSection}>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => navigation.navigate("MockInterviewSession")}
+            onPress={() =>
+              navigation.navigate("MockInterviewSession", {
+                sessionTitle: "New Mock Interview",
+              })
+            }
             activeOpacity={0.85}
           >
             <Ionicons name="refresh" size={20} color="#FFFFFF" />
@@ -203,6 +344,17 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  loaderText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#64748B",
   },
   header: {
     paddingTop: Platform.OS === "web" ? 24 : 16,

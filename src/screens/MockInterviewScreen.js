@@ -18,9 +18,13 @@ import Waveform from "../../components/Waveform";
 import useRealtimeWaveform from "../audio/useRealtimeWaveform";
 import {
   startInterviewSession,
-  submitInterviewAnswer,
-  getInterviewFeedback,
+  submitMockInterviewAudio,
+  getMockInterviewResult,
 } from "../services/interviewApi";
+
+const MIN_DURATION_SECONDS = 290;
+const AUTO_STOP_SECONDS = 294;
+const MAX_ALLOWED_SECONDS = 315;
 
 export default function MockInterviewScreen({ route, navigation }) {
   const sessionTitle = route?.params?.sessionTitle || "Mock Interview";
@@ -30,18 +34,26 @@ export default function MockInterviewScreen({ route, navigation }) {
 
   const [seconds, setSeconds] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isLoadingNext, setIsLoadingNext] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionFinished, setSessionFinished] = useState(false);
+  const [hasStartedRecording, setHasStartedRecording] = useState(false);
+  const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
 
   const [sessionId, setSessionId] = useState("");
-  const [questionIndex, setQuestionIndex] = useState(1);
-  const [questionText, setQuestionText] = useState("");
+  const [questions, setQuestions] = useState([]);
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [statusText, setStatusText] = useState("Preparing your mock session...");
-  const [finalFeedback, setFinalFeedback] = useState(null);
+  const [finalResult, setFinalResult] = useState(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const mountedRef = useRef(true);
+
+  const recordingStartTimeRef = useRef(null);
+  const autoStopTriggeredRef = useRef(false);
+
+  const currentQuestion = questions[questionIndex] || null;
+  const totalQuestions = questions.length;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -56,10 +68,13 @@ export default function MockInterviewScreen({ route, navigation }) {
   useEffect(() => {
     let interval;
 
-    if (isRecording) {
+    if (isRecording && recordingStartTimeRef.current) {
       interval = setInterval(() => {
-        setSeconds((prev) => prev + 1);
-      }, 1000);
+        const elapsed = Math.floor(
+          (Date.now() - recordingStartTimeRef.current) / 1000
+        );
+        setSeconds(elapsed);
+      }, 250);
     }
 
     return () => clearInterval(interval);
@@ -107,15 +122,61 @@ export default function MockInterviewScreen({ route, navigation }) {
     return () => pulseLoop?.stop();
   }, [isRecording, glowAnim, pulseAnim]);
 
+  useEffect(() => {
+    if (!isRecording || isSubmitting || sessionFinished) return;
+    if (autoStopTriggeredRef.current) return;
+
+    if (seconds >= AUTO_STOP_SECONDS) {
+      autoStopTriggeredRef.current = true;
+      setHasAutoSubmitted(true);
+      handleFinishSession(true);
+    }
+  }, [seconds, isRecording, isSubmitting, sessionFinished]);
+
+  useEffect(() => {
+    if (!isRecording || isSubmitting || sessionFinished) return;
+
+    if (seconds < MIN_DURATION_SECONDS) {
+      setStatusText(
+        "Recording in progress. Keep answering clearly. Minimum required duration not reached yet."
+      );
+    } else if (seconds < AUTO_STOP_SECONDS) {
+      setStatusText(
+        "Good progress. You can submit now or continue speaking until auto-stop."
+      );
+    } else if (seconds <= MAX_ALLOWED_SECONDS) {
+      setStatusText("Finalizing your mock interview...");
+    }
+  }, [seconds, isRecording, isSubmitting, sessionFinished]);
+
   const formattedTime = useMemo(() => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }, [seconds]);
 
+  const progressText = useMemo(() => {
+    if (!isRecording) {
+      return `Required: ${MIN_DURATION_SECONDS}s minimum`;
+    }
+
+    if (seconds < MIN_DURATION_SECONDS) {
+      return `Minimum submission time remaining: ${MIN_DURATION_SECONDS - seconds}s`;
+    }
+
+    if (seconds < AUTO_STOP_SECONDS) {
+      return `You can submit now or recording will auto-stop in ${AUTO_STOP_SECONDS - seconds}s`;
+    }
+
+    return "Auto-submitting...";
+  }, [seconds, isRecording]);
+
   const speakTextAsync = (text) => {
     return new Promise((resolve) => {
-      if (!text || !text.trim()) return resolve();
+      if (!text || !text.trim()) {
+        resolve();
+        return;
+      }
 
       Speech.stop();
 
@@ -143,20 +204,35 @@ export default function MockInterviewScreen({ route, navigation }) {
     });
   };
 
-  const speakQuestion = async (text) => {
-    if (!text) return;
+  const speakCurrentQuestion = async (
+    indexToSpeak = questionIndex,
+    questionsList = questions
+  ) => {
+    const question = questionsList[indexToSpeak];
+
+    if (!question?.text) return;
 
     setStatusText("AI is asking the question...");
-    await speakTextAsync(text);
+    await speakTextAsync(question.text);
 
-    if (mountedRef.current) {
-      setStatusText("Tap the mic to start answering.");
+    if (!mountedRef.current) return;
+
+    if (!hasStartedRecording) {
+      setStatusText("Tap the mic to start the full mock interview recording.");
+    } else if (seconds < MIN_DURATION_SECONDS) {
+      setStatusText(
+        "Answer this question clearly and continue speaking without long pauses."
+      );
+    } else {
+      setStatusText(
+        "Answer this question clearly. You may submit now or continue."
+      );
     }
   };
 
   const initializeSession = async () => {
     try {
-      setStatusText("Loading first mock question...");
+      setStatusText("Loading mock interview questions...");
 
       const data = await startInterviewSession({
         candidateId,
@@ -164,13 +240,26 @@ export default function MockInterviewScreen({ route, navigation }) {
 
       if (!mountedRef.current) return;
 
-      setSessionId(data.sessionId || "");
-      setQuestionIndex(1);
-      setQuestionText(data.currentQuestion?.text || "");
-      setSessionFinished(false);
-      setFinalFeedback(null);
+      const fetchedQuestions = Array.isArray(data?.questions)
+        ? data.questions
+        : [];
 
-      await speakQuestion(data.currentQuestion?.text || "First question.");
+      setSessionId(data.sessionId || "");
+      setQuestions(fetchedQuestions);
+      setQuestionIndex(0);
+      setSessionFinished(false);
+      setFinalResult(null);
+      setHasStartedRecording(false);
+      setHasAutoSubmitted(false);
+      setSeconds(0);
+      recordingStartTimeRef.current = null;
+      autoStopTriggeredRef.current = false;
+
+      if (!fetchedQuestions.length) {
+        throw new Error("No mock interview questions received.");
+      }
+
+      await speakCurrentQuestion(0, fetchedQuestions);
     } catch (error) {
       console.log("Mock session init error:", error);
 
@@ -181,131 +270,150 @@ export default function MockInterviewScreen({ route, navigation }) {
     }
   };
 
-  const handleMicPress = async () => {
-    if (isSpeaking || isLoadingNext || sessionFinished) return;
-
+  const handleStartRecording = async () => {
     try {
-      if (!isRecording) {
-        setSeconds(0);
-        setStatusText("Starting microphone...");
-        await start();
-
-        if (mountedRef.current) {
-          setStatusText("Recording in progress...");
-        }
-      } else {
-        setStatusText("Stopping recording...");
-        setIsLoadingNext(true);
-
-        const audioUri = await stop();
-
-        if (!audioUri) {
-          throw new Error("No recording produced.");
-        }
-
-        await handleBackendFlow(audioUri);
-      }
-    } catch (error) {
-      console.log("Mic error:", error);
+      setStatusText("Starting full-session recording...");
+      await start();
 
       if (!mountedRef.current) return;
 
-      setIsLoadingNext(false);
-      setStatusText("Microphone error");
+      recordingStartTimeRef.current = Date.now();
+      autoStopTriggeredRef.current = false;
+      setHasStartedRecording(true);
+      setHasAutoSubmitted(false);
+      setSeconds(0);
+      setStatusText(
+        "Recording started. Keep answering clearly without long pauses."
+      );
+    } catch (error) {
+      console.log("Start recording error:", error);
 
+      if (!mountedRef.current) return;
+
+      setStatusText("Microphone error");
       Alert.alert(
         "Microphone Error",
-        error?.message || "Could not access microphone"
+        error?.message || "Could not access microphone."
       );
     }
   };
 
-  const handleSessionCompletion = async () => {
-    let feedback = null;
-
-    try {
-      setStatusText("Fetching final feedback...");
-
-      feedback = await getInterviewFeedback(sessionId);
-
-      if (!mountedRef.current) return;
-
-      setFinalFeedback(feedback);
-    } catch (error) {
-      console.log("Feedback fetch error:", error);
-
-      if (!mountedRef.current) return;
-
-      setFinalFeedback({
-        feedback: "Session completed, but final feedback could not be loaded.",
-      });
+  const handleNextQuestion = async () => {
+    if (!hasStartedRecording || !isRecording) {
+      Alert.alert(
+        "Start Recording First",
+        "Please start the recording before moving to the next question."
+      );
+      return;
     }
 
-    if (!mountedRef.current) return;
+    if (isSpeaking || isSubmitting || sessionFinished) return;
 
-    setSessionFinished(true);
-    setIsLoadingNext(false);
-    setStatusText("Session complete.");
+    const nextIndex = questionIndex + 1;
 
-    const spokenFeedback =
-      feedback?.feedback ||
-      feedback?.summary ||
-      "Your mock interview session is completed.";
+    if (nextIndex >= questions.length) {
+      Alert.alert(
+        "All Questions Reached",
+        seconds >= MIN_DURATION_SECONDS
+          ? "You have reached the final question. You can submit now or continue until auto-stop."
+          : "You have reached the final question. Keep speaking until the minimum duration is reached."
+      );
+      return;
+    }
 
-    await speakTextAsync(spokenFeedback);
-
-    if (!mountedRef.current) return;
-
-    Alert.alert("Session Complete", "Your final feedback is now shown below.");
+    setQuestionIndex(nextIndex);
+    await speakCurrentQuestion(nextIndex, questions);
   };
 
-  const handleBackendFlow = async (audioUri) => {
-    try {
-      setStatusText("Sending answer to backend...");
+  const handleFinishSession = async (isAutoFinish = false) => {
+    if (!hasStartedRecording || !isRecording) {
+      Alert.alert(
+        "Recording Not Started",
+        "Please start the recording before finishing the session."
+      );
+      return;
+    }
 
-      const data = await submitInterviewAnswer({
+    if (!isAutoFinish && seconds < MIN_DURATION_SECONDS) {
+      Alert.alert(
+        "Recording Too Short",
+        `Please continue the mock interview for at least ${MIN_DURATION_SECONDS} seconds before submitting.`
+      );
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setStatusText(
+        isAutoFinish
+          ? "Stopping recording automatically..."
+          : "Stopping recording..."
+      );
+
+      const audioUri = await stop();
+      recordingStartTimeRef.current = null;
+
+      if (!audioUri) {
+        throw new Error("No recording produced.");
+      }
+
+      if (!mountedRef.current) return;
+
+      setStatusText("Uploading full mock interview audio...");
+      await submitMockInterviewAudio({
         audioUri,
         sessionId,
       });
 
       if (!mountedRef.current) return;
 
-      setSeconds(0);
-
-      if (data.sessionComplete) {
-        await handleSessionCompletion();
-        return;
-      }
-
-      const nextQuestionText = data.nextQuestion?.text || "";
-
-      setQuestionIndex((prev) => prev + 1);
-      setQuestionText(nextQuestionText);
-      setStatusText("Playing next question...");
-
-      await speakQuestion(nextQuestionText || "Next question.");
-
-      if (mountedRef.current) {
-        setIsLoadingNext(false);
-      }
-    } catch (error) {
-      console.log("Backend error:", error);
+      setStatusText("Fetching final result...");
+      const result = await getMockInterviewResult(sessionId);
 
       if (!mountedRef.current) return;
 
-      setIsLoadingNext(false);
-      setStatusText("Failed to process answer.");
+      setFinalResult(result);
+      setSessionFinished(true);
+      setIsSubmitting(false);
+      setStatusText("Session complete.");
 
-      Alert.alert("Error", error?.message || "Failed to process recording.");
+      const spokenSummary =
+        result?.gapAnalysis || "Your mock interview has been completed.";
+      await speakTextAsync(spokenSummary);
+
+      if (!mountedRef.current) return;
+
+      Alert.alert("Session Complete", "Your mock interview result is ready.");
+    } catch (error) {
+      console.log("Finish session error:", error);
+
+      recordingStartTimeRef.current = null;
+
+      if (!mountedRef.current) return;
+
+      setIsSubmitting(false);
+      setStatusText("Failed to complete session.");
+      setHasAutoSubmitted(false);
+      autoStopTriggeredRef.current = false;
+
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to complete mock interview."
+      );
     }
   };
 
   const handleReplayQuestion = async () => {
-    if (!questionText || isLoadingNext || isRecording || isSpeaking || sessionFinished) {
+    if (
+      !currentQuestion?.text ||
+      isSubmitting ||
+      isSpeaking ||
+      sessionFinished
+    ) {
       return;
     }
 
-    await speakQuestion(questionText);
+    await speakCurrentQuestion(questionIndex, questions);
   };
 
   const handlePracticeAgain = () => {
@@ -315,23 +423,17 @@ export default function MockInterviewScreen({ route, navigation }) {
     });
   };
 
-  const assistantStateText = isRecording
-    ? "Listening..."
+  const assistantStateText = isSubmitting
+    ? "Processing..."
     : isSpeaking
     ? "Audio Playing..."
-    : isLoadingNext
-    ? "Processing..."
     : sessionFinished
     ? "Completed"
-    : "Tap to Speak";
+    : isRecording
+    ? "Recording..."
+    : "Ready";
 
   const isWeb = Platform.OS === "web";
-
-  const feedbackText =
-    finalFeedback?.feedback ||
-    finalFeedback?.summary ||
-    finalFeedback?.message ||
-    "";
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -354,21 +456,28 @@ export default function MockInterviewScreen({ route, navigation }) {
 
             <View style={styles.rightTopGroup}>
               <View style={styles.questionNumberPill}>
-                <Text style={styles.questionNumberText}>Q{questionIndex}</Text>
+                <Text style={styles.questionNumberText}>
+                  {sessionFinished
+                    ? `${totalQuestions}/${totalQuestions}`
+                    : `${Math.min(questionIndex + 1, totalQuestions)}/${totalQuestions || 0}`}
+                </Text>
               </View>
 
               {!sessionFinished && (
                 <TouchableOpacity
                   style={[
                     styles.replayButton,
-                    (isRecording || isLoadingNext || isSpeaking) &&
-                      styles.replayButtonDisabled,
+                    (isSubmitting || isSpeaking) && styles.replayButtonDisabled,
                   ]}
                   onPress={handleReplayQuestion}
-                  disabled={isRecording || isLoadingNext || isSpeaking}
+                  disabled={isSubmitting || isSpeaking}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="volume-high-outline" size={18} color="#0F172A" />
+                  <Ionicons
+                    name="volume-high-outline"
+                    size={18}
+                    color="#0F172A"
+                  />
                 </TouchableOpacity>
               )}
             </View>
@@ -377,7 +486,7 @@ export default function MockInterviewScreen({ route, navigation }) {
           <Text style={styles.questionText}>
             {sessionFinished
               ? "Mock interview completed successfully."
-              : questionText || "Loading question..."}
+              : currentQuestion?.text || "Loading question..."}
           </Text>
         </View>
 
@@ -416,7 +525,9 @@ export default function MockInterviewScreen({ route, navigation }) {
                       <View
                         style={[
                           styles.waveformShell,
-                          isWeb ? styles.waveformShellWeb : styles.waveformShellMobile,
+                          isWeb
+                            ? styles.waveformShellWeb
+                            : styles.waveformShellMobile,
                         ]}
                       >
                         <Waveform bars={bars} />
@@ -429,21 +540,19 @@ export default function MockInterviewScreen({ route, navigation }) {
                   style={[
                     styles.micButtonFloating,
                     isRecording && styles.micButtonActive,
-                    (isSpeaking || isLoadingNext || sessionFinished) &&
+                    (isSpeaking || isSubmitting || sessionFinished) &&
                       styles.micButtonDisabled,
                   ]}
-                  onPress={handleMicPress}
+                  onPress={handleStartRecording}
                   activeOpacity={0.9}
-                  disabled={isSpeaking || isLoadingNext || sessionFinished}
+                  disabled={
+                    isRecording || isSpeaking || isSubmitting || sessionFinished
+                  }
                 >
-                  {isLoadingNext ? (
+                  {isSubmitting ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Ionicons
-                      name={isRecording ? "stop" : "mic"}
-                      size={30}
-                      color="#fff"
-                    />
+                    <Ionicons name="mic" size={30} color="#fff" />
                   )}
                 </TouchableOpacity>
               </View>
@@ -457,7 +566,53 @@ export default function MockInterviewScreen({ route, navigation }) {
                 </View>
               </View>
 
+              <Text style={styles.progressText}>{progressText}</Text>
               <Text style={styles.statusText}>{statusText}</Text>
+
+              <View style={styles.actionButtonsWrapper}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.secondaryActionButton,
+                    (!hasStartedRecording || isSpeaking || isSubmitting) &&
+                      styles.actionButtonDisabled,
+                  ]}
+                  onPress={handleNextQuestion}
+                  disabled={!hasStartedRecording || isSpeaking || isSubmitting}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.secondaryActionButtonText}>
+                    Next Question
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.primaryActionButton,
+                    (!hasStartedRecording ||
+                      isSpeaking ||
+                      isSubmitting ||
+                      seconds < MIN_DURATION_SECONDS) &&
+                      styles.actionButtonDisabled,
+                  ]}
+                  onPress={() => handleFinishSession(false)}
+                  disabled={
+                    !hasStartedRecording ||
+                    isSpeaking ||
+                    isSubmitting ||
+                    seconds < MIN_DURATION_SECONDS
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.primaryActionButtonText}>Submit Now</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </>
         ) : (
@@ -465,13 +620,48 @@ export default function MockInterviewScreen({ route, navigation }) {
             <View style={styles.feedbackCard}>
               <View style={styles.feedbackHeader}>
                 <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                <Text style={styles.feedbackTitle}>Final Feedback</Text>
+                <Text style={styles.feedbackTitle}>Gap Analysis</Text>
               </View>
 
               <Text style={styles.feedbackBody}>
-                {feedbackText || "No final feedback available."}
+                {finalResult?.gapAnalysis || "No gap analysis available."}
               </Text>
             </View>
+
+            {!!finalResult?.responses?.length && (
+              <View style={styles.responsesCard}>
+                <Text style={styles.responsesTitle}>Responses Review</Text>
+
+                {finalResult.responses.map((item, index) => (
+                  <View
+                    key={`${item.questionText}-${index}`}
+                    style={styles.responseItem}
+                  >
+                    <Text style={styles.responseQuestion}>
+                      Q{index + 1}. {item.questionText}
+                    </Text>
+
+                    {!!item.userAnswer ? (
+                      <Text style={styles.responseAnswer}>
+                        Answer: {item.userAnswer}
+                      </Text>
+                    ) : null}
+
+                    {typeof item.confidenceScore === "number" ? (
+                      <Text style={styles.responseMeta}>
+                        Confidence: {(item.confidenceScore * 100).toFixed(0)}%
+                      </Text>
+                    ) : null}
+
+                    {!!item.feedback ? (
+                      <Text style={styles.responseFeedback}>
+                        Feedback: {item.feedback}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            )}
 
             <View style={styles.completedInfoCard}>
               <Text style={styles.completedInfoText}>{statusText}</Text>
@@ -791,11 +981,57 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
 
+  progressText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#2563EB",
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
   statusText: {
     fontSize: 14,
     lineHeight: 21,
     color: "#64748B",
     fontWeight: "500",
+  },
+
+  actionButtonsWrapper: {
+    marginTop: 16,
+    gap: 10,
+  },
+
+  actionButton: {
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+
+  secondaryActionButton: {
+    backgroundColor: "#E2E8F0",
+  },
+
+  secondaryActionButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  primaryActionButton: {
+    backgroundColor: "#2563EB",
+  },
+
+  primaryActionButtonText: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 
   feedbackSection: {
@@ -832,6 +1068,54 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: "#475569",
     fontWeight: "500",
+  },
+
+  responsesCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 14,
+  },
+
+  responsesTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 14,
+  },
+
+  responseItem: {
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    paddingTop: 14,
+    marginTop: 14,
+  },
+
+  responseQuestion: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 6,
+  },
+
+  responseAnswer: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#334155",
+    marginBottom: 6,
+  },
+
+  responseMeta: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#2563EB",
+    marginBottom: 6,
+  },
+
+  responseFeedback: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#475569",
   },
 
   completedInfoCard: {
