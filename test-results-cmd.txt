@@ -1,0 +1,215 @@
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+  console.log
+    InterviewScreen candidateId: test-candidate-123
+
+      at log (src/features/interview/InterviewScreen.tsx:57:11)
+
+FAIL src/features/interview/__tests__/InterviewScreen.test.tsx
+  InterviewScreen
+    √ 1. loads initial question on mount (320 ms)
+    √ 2. successful question submission flow (257 ms)
+    × 3. progression to next question after submit (46 ms)
+    √ 4. session complete state when practiceComplete is true (37 ms)
+    √ 5. timer cleanup on unmount (30 ms)
+    × 6. replay question triggering speech again (24 ms)
+
+  ● InterviewScreen › 3. progression to next question after submit
+
+    Found multiple elements with text: Q2
+
+    [0m [90m 209 |[39m     
+     [90m 210 |[39m     [90m// Progresses to Q2[39m
+    [31m[1m>[22m[39m[90m 211 |[39m     [36mawait[39m waitFor(() [33m=>[39m {
+     [90m     |[39m                  [31m[1m^[22m[39m
+     [90m 212 |[39m       expect(screen[33m.[39mgetByText([32m'Q2'[39m))[33m.[39mtoBeTruthy()[33m;[39m
+     [90m 213 |[39m     })[33m;[39m
+     [90m 214 |[39m   })[33m;[39m[0m
+
+      at Object.<anonymous> (src/features/interview/__tests__/InterviewScreen.test.tsx:211:18)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+  ● InterviewScreen › 6. replay question triggering speech again
+
+    ReferenceError: clearInterval is not defined
+
+    [0m [90m 100 |[39m     }
+     [90m 101 |[39m
+    [31m[1m>[22m[39m[90m 102 |[39m     [36mreturn[39m () [33m=>[39m clearInterval(interval)[33m;[39m
+     [90m     |[39m            [31m[1m^[22m[39m
+     [90m 103 |[39m   }[33m,[39m [isRecording])[33m;[39m
+     [90m 104 |[39m
+     [90m 105 |[39m   [90m// Pulse / glow animation — runs while microphone is recording.[39m[0m
+
+      at src/features/interview/InterviewScreen.tsx:102:12
+      at Object.react_stack_bottom_frame (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:15767:13)
+      at runWithFiberInDEV (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:2315:13)
+      at commitHookEffectListUnmount (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:9597:17)
+      at commitHookPassiveUnmountEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:9628:11)
+      at commitPassiveUnmountEffectsInsideOfDeletedTree_begin (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11939:13)
+      at recursivelyTraversePassiveUnmountEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11760:13)
+      at commitPassiveUnmountOnFiber (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11802:11)
+      at flushPendingEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:14082:11)
+      at performWorkOnRootViaSchedulerTask (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:2896:11)
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at node_modules/react/cjs/react.development.js:847:21
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 4 passed, 6 total
+Snapshots:   0 total
+Time:        2.233 s
+Ran all test suites matching /src\\features\\interview\\__tests__\\InterviewScreen.test.tsx/i.

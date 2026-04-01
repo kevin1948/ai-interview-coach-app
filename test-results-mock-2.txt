@@ -1,0 +1,104 @@
+  console.log
+    Mock session init error: Error: Initialization failed
+        at C:\Users\kevin\Desktop\Interview_App\src\features\mock-interview\MockInterviewScreen.tsx:301:15
+        at Generator.next (<anonymous>)
+        at asyncGeneratorStep (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:3:17)
+        at _next (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:17:9)
+
+      at log (src/features/mock-interview/MockInterviewScreen.tsx:334:15)
+
+  console.log
+    Finish session error: Error: Upload timeout
+        at C:\Users\kevin\Desktop\Interview_App\src\features\mock-interview\MockInterviewScreen.tsx:441:15
+        at Generator.next (<anonymous>)
+        at asyncGeneratorStep (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:3:17)
+        at _next (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:17:9)
+
+      at log (src/features/mock-interview/MockInterviewScreen.tsx:484:15)
+
+FAIL src/features/mock-interview/__tests__/MockInterviewScreen.test.tsx (6.37 s)
+  MockInterviewScreen
+    √ 1. session initialization on mount (456 ms)
+    √ 2. recording start flow (211 ms)
+    √ 3. auto-stop behavior (800 ms)
+    √ 4. manual finish flow (785 ms)
+    √ 5. result fetch after finish (892 ms)
+    √ 6. practice again flow (824 ms)
+    √ 7. cleanup on unmount (39 ms)
+    × 8. handles start session failure correctly (83 ms)
+    × 9. handles audio submission failure correctly (725 ms)
+
+  ● MockInterviewScreen › 8. handles start session failure correctly
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 342 |[39m     [36mconst[39m micButton [33m=[39m screen[33m.[39mgetByTestId([32m'mic-button'[39m)[33m;[39m
+     [90m 343 |[39m     [90m// It should be disabled[39m
+    [31m[1m>[22m[39m[90m 344 |[39m     expect(micButton[33m.[39mprops[33m.[39maccessibilityState[33m?[39m[33m.[39mdisabled [33m?[39m[33m?[39m micButton[33m.[39mprops[33m.[39mdisabled)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m     |[39m                                                                                      [31m[1m^[22m[39m
+     [90m 345 |[39m   })[33m;[39m
+     [90m 346 |[39m
+     [90m 347 |[39m   it([32m'9. handles audio submission failure correctly'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.toBe (src/features/mock-interview/__tests__/MockInterviewScreen.test.tsx:344:86)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+  ● MockInterviewScreen › 8. handles start session failure correctly
+
+    ReferenceError: clearInterval is not defined
+
+    [0m [90m 122 |[39m     }
+     [90m 123 |[39m
+    [31m[1m>[22m[39m[90m 124 |[39m     [36mreturn[39m () [33m=>[39m clearInterval(interval)[33m;[39m
+     [90m     |[39m            [31m[1m^[22m[39m
+     [90m 125 |[39m   }[33m,[39m [isRecording])[33m;[39m
+     [90m 126 |[39m
+     [90m 127 |[39m   [90m// Pulse / glow animation while recording.[39m[0m
+
+      at src/features/mock-interview/MockInterviewScreen.tsx:124:12
+      at Object.react_stack_bottom_frame (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:15767:13)
+      at runWithFiberInDEV (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:2315:13)
+      at commitHookEffectListUnmount (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:9597:17)
+      at commitHookPassiveUnmountEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:9628:11)
+      at commitPassiveUnmountEffectsInsideOfDeletedTree_begin (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11939:13)
+      at recursivelyTraversePassiveUnmountEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11760:13)
+      at commitPassiveUnmountOnFiber (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11802:11)
+      at flushPendingEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:14082:11)
+      at performWorkOnRootViaSchedulerTask (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:2896:11)
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at node_modules/react/cjs/react.development.js:847:21
+
+  ● MockInterviewScreen › 9. handles audio submission failure correctly
+
+    ReferenceError: clearInterval is not defined
+
+    [0m [90m 122 |[39m     }
+     [90m 123 |[39m
+    [31m[1m>[22m[39m[90m 124 |[39m     [36mreturn[39m () [33m=>[39m clearInterval(interval)[33m;[39m
+     [90m     |[39m            [31m[1m^[22m[39m
+     [90m 125 |[39m   }[33m,[39m [isRecording])[33m;[39m
+     [90m 126 |[39m
+     [90m 127 |[39m   [90m// Pulse / glow animation while recording.[39m[0m
+
+      at src/features/mock-interview/MockInterviewScreen.tsx:124:12
+      at Object.react_stack_bottom_frame (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:15767:13)
+      at runWithFiberInDEV (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:2315:13)
+      at commitHookEffectListUnmount (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:9597:17)
+      at commitHookPassiveUnmountEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:9628:11)
+      at commitPassiveUnmountEffectsInsideOfDeletedTree_begin (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11939:13)
+      at recursivelyTraversePassiveUnmountEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11760:13)
+      at commitPassiveUnmountOnFiber (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:11802:11)
+      at flushPendingEffects (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:14082:11)
+      at performWorkOnRootViaSchedulerTask (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:2896:11)
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at node_modules/react/cjs/react.development.js:847:21
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 7 passed, 9 total
+Snapshots:   0 total
+Time:        6.702 s, estimated 7 s
+Ran all test suites matching /src\\features\\mock-interview\\__tests__\\MockInterviewScreen.test.tsx/i.

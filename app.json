@@ -2,6 +2,7 @@
   "expo": {
     "name": "Interview_App",
     "slug": "Interview_App",
+    "scheme": "interviewapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,6 +34,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-router",
       "expo-audio",
       "expo-build-properties",
       [

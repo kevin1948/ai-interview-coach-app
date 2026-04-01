@@ -1,0 +1,79 @@
+  console.log
+    Mock session init error: Error: Initialization failed
+        at C:\Users\kevin\Desktop\Interview_App\src\features\mock-interview\MockInterviewScreen.tsx:301:15
+        at Generator.next (<anonymous>)
+        at asyncGeneratorStep (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:3:17)
+        at _next (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:17:9)
+
+      at log (src/features/mock-interview/MockInterviewScreen.tsx:334:15)
+
+  console.log
+    Finish session error: Error: Upload timeout
+        at C:\Users\kevin\Desktop\Interview_App\src\features\mock-interview\MockInterviewScreen.tsx:441:15
+        at Generator.next (<anonymous>)
+        at asyncGeneratorStep (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:3:17)
+        at _next (C:\Users\kevin\Desktop\Interview_App\node_modules\@babel\runtime\helpers\asyncToGenerator.js:17:9)
+
+      at log (src/features/mock-interview/MockInterviewScreen.tsx:484:15)
+
+FAIL src/features/mock-interview/__tests__/MockInterviewScreen.test.tsx (5.796 s)
+  MockInterviewScreen
+    √ 1. session initialization on mount (396 ms)
+    √ 2. recording start flow (176 ms)
+    √ 3. auto-stop behavior (791 ms)
+    √ 4. manual finish flow (768 ms)
+    √ 5. result fetch after finish (781 ms)
+    √ 6. practice again flow (728 ms)
+    √ 7. cleanup on unmount (41 ms)
+    × 8. handles start session failure correctly (70 ms)
+    × 9. handles audio submission failure correctly (758 ms)
+
+  ● MockInterviewScreen › 8. handles start session failure correctly
+
+    expect(received).toHaveBeenCalledWith(...expected)
+
+    Matcher error: received value must be a mock or spy function
+
+    Received has type:  function
+    Received has value: [Function alert]
+
+    [0m [90m 331 |[39m     renderScreen()[33m;[39m
+     [90m 332 |[39m
+    [31m[1m>[22m[39m[90m 333 |[39m     [36mawait[39m waitFor(() [33m=>[39m {
+     [90m     |[39m                  [31m[1m^[22m[39m
+     [90m 334 |[39m       expect([33mAlert[39m[33m.[39malert)[33m.[39mtoHaveBeenCalledWith(
+     [90m 335 |[39m         [32m'Error'[39m[33m,[39m
+     [90m 336 |[39m         [32m'Initialization failed'[39m[0m
+
+      at Object.<anonymous> (src/features/mock-interview/__tests__/MockInterviewScreen.test.tsx:333:18)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at Object.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+
+  ● MockInterviewScreen › 9. handles audio submission failure correctly
+
+    expect(received).toHaveBeenCalledWith(...expected)
+
+    Matcher error: received value must be a mock or spy function
+
+    Received has type:  function
+    Received has value: [Function alert]
+
+    [0m [90m 367 |[39m     [36mawait[39m act([36masync[39m () [33m=>[39m fireEvent[33m.[39mpress(submitButton))[33m;[39m
+     [90m 368 |[39m
+    [31m[1m>[22m[39m[90m 369 |[39m     [36mawait[39m waitFor(() [33m=>[39m {
+     [90m     |[39m                  [31m[1m^[22m[39m
+     [90m 370 |[39m       expect([33mAlert[39m[33m.[39malert)[33m.[39mtoHaveBeenCalledWith(
+     [90m 371 |[39m         [32m'Error'[39m[33m,[39m
+     [90m 372 |[39m         [32m'Upload timeout'[39m[0m
+
+      at Object.<anonymous> (src/features/mock-interview/__tests__/MockInterviewScreen.test.tsx:369:18)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 7 passed, 9 total
+Snapshots:   0 total
+Time:        6.076 s, estimated 8 s
+Ran all test suites matching /src\\features\\mock-interview\\__tests__\\MockInterviewScreen.test.tsx/i.
