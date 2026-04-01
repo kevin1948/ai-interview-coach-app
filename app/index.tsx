@@ -10,8 +10,8 @@
  */
 import React, { useRef } from "react";
 
-import HomeScreen from "../src/features/home/HomeScreen";
-import { createNavigationBridge } from "../src/lib/navigationBridge";
+import HomeScreen from "../src/screens/HomeScreen";
+import { createNavigationBridge } from "../src/utils/navigationBridge";
 
 export default function HomeRoute() {
   // useRef ensures the navigation object is stable across renders,

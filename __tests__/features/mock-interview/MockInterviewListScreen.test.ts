@@ -1,4 +1,4 @@
-import { mapBackendSessionToUi, BackendSession } from '../../../src/features/mock-interview/MockInterviewListScreen';
+import { mapBackendSessionToUi, BackendSession } from '../../../src/screens/MockInterviewListScreen';
 
 describe('MockInterviewListScreen mapping logic', () => {
   it('maps complete session correctly', () => {

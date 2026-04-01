@@ -1,4 +1,0 @@
-﻿src/features/audio/useRealtimeWaveform.native.ts(124,19): error TS2339: Property 'path' does not exist on type 'Result<{ path: string; }>'.
-  Property 'path' does not exist on type '{ status: "error"; message: string; }'.
-src/features/audio/useRealtimeWaveform.native.ts(125,33): error TS2339: Property 'path' does not exist on type 'Result<{ path: string; }>'.
-  Property 'path' does not exist on type '{ status: "error"; message: string; }'.

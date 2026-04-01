@@ -9,8 +9,8 @@
  */
 import React, { useRef } from "react";
 
-import MockInterviewListScreen from "../../src/features/mock-interview/MockInterviewListScreen";
-import { createNavigationBridge } from "../../src/lib/navigationBridge";
+import MockInterviewListScreen from "../../src/screens/MockInterviewListScreen";
+import { createNavigationBridge } from "../../src/utils/navigationBridge";
 
 export default function MockInterviewListRoute() {
   const navigation = useRef(createNavigationBridge()).current;

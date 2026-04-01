@@ -10,8 +10,8 @@
 import React, { useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
 
-import SessionPickerScreen from "../src/features/session/SessionPickerScreen";
-import { createNavigationBridge } from "../src/lib/navigationBridge";
+import SessionPickerScreen from "../src/screens/SessionPickerScreen";
+import { createNavigationBridge } from "../src/utils/navigationBridge";
 
 export default function SessionPickerRoute() {
   const params = useLocalSearchParams<{

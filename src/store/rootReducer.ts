@@ -6,11 +6,11 @@
  */
 
 import { combineReducers } from '@reduxjs/toolkit';
-import profileReducer from '../features/profile/profileSlice';
-import { resumeApi } from '../features/resume/resumeApiSlice';
-import { practiceApi } from '../features/session/practiceApiSlice';
-import { interviewApi } from '../features/interview/interviewApiSlice';
-import { mockInterviewApi } from '../features/mock-interview/mockInterviewApiSlice';
+import profileReducer from '../store/profileSlice';
+import { resumeApi } from '../services/resumeApiSlice';
+import { practiceApi } from '../services/practiceApiSlice';
+import { interviewApi } from '../services/interviewApiSlice';
+import { mockInterviewApi } from '../services/mockInterviewApiSlice';
 
 const rootReducer = combineReducers({
   // ── Feature reducers ────────────────────────────────────────────────────

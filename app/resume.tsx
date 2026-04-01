@@ -6,8 +6,8 @@
  */
 import React, { useRef } from "react";
 
-import ResumeScreen from "../src/features/resume/ResumeScreen";
-import { createNavigationBridge } from "../src/lib/navigationBridge";
+import ResumeScreen from "../src/screens/ResumeScreen";
+import { createNavigationBridge } from "../src/utils/navigationBridge";
 
 export default function ResumeRoute() {
   const navigation = useRef(createNavigationBridge()).current;

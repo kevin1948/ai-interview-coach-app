@@ -1,0 +1,831 @@
+import { logger } from '../utils/logger';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Platform,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import * as Speech from "expo-speech";
+
+import Waveform from "../components/Waveform";
+import useRealtimeWaveform from "../hooks/useRealtimeWaveform";
+import {
+  useLazyStartPracticeQuestionQuery,
+  useSubmitPracticeAnswerMutation,
+} from "../services/practiceApiSlice";
+import type { NormalizedQuestion, NormalizedAnswerResponse } from "../services/practiceApiSlice";
+import { useAppSelector } from "../store/hooks";
+import type { NavigationBridge } from "../utils/navigationBridge";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+/** Route params forwarded by the Expo Router wrapper at app/interview/[sessionId].tsx */
+interface InterviewRouteParams {
+  /** Backward-compatibility fallback — Redux is the primary source. */
+  candidateId?:  string;
+  resumeId?:     string;
+  type?:         string;
+  sessionTitle?: string;
+}
+
+/** Route object shape injected by the bridge wrapper. */
+interface InterviewRoute {
+  key?:    string;
+  name?:   string;
+  params?: InterviewRouteParams;
+}
+
+/** Component props. */
+interface Props {
+  route?:     InterviewRoute;
+  navigation: NavigationBridge;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function InterviewScreen({ route, navigation }: Props) {
+  // Read candidateId from Redux; fall back to route params for backward
+  // compatibility while SessionPickerScreen still forwards them.
+  const profileCandidateId = useAppSelector((s) => s.profile.candidateId);
+  const candidateId: string = profileCandidateId || route?.params?.candidateId || "";
+  logger.log("InterviewScreen candidateId:", candidateId);
+  const sessionTitle: string = route?.params?.sessionTitle || "Interview Coach";
+
+  const { isRecording, bars, start, stop } = useRealtimeWaveform();
+
+  // RTK Query hooks — replace direct practiceApi.js imports
+  const [triggerStartPracticeQuestion] = useLazyStartPracticeQuestionQuery();
+  const [triggerSubmitPracticeAnswer]  = useSubmitPracticeAnswerMutation();
+
+  const [seconds,         setSeconds]         = useState<number>(0);
+  const [isSpeaking,      setIsSpeaking]       = useState<boolean>(false);
+  const [isLoadingNext,   setIsLoadingNext]    = useState<boolean>(false);
+  const [sessionFinished, setSessionFinished]  = useState<boolean>(false);
+
+  const [questionIndex, setQuestionIndex] = useState<number>(1);
+  const [questionId,    setQuestionId]    = useState<string>("");
+  const [questionText,  setQuestionText]  = useState<string>("");
+  const [statusText,    setStatusText]    = useState<string>(
+    "Preparing your practice session..."
+  );
+
+  const pulseAnim  = useRef(new Animated.Value(1)).current;
+  const glowAnim   = useRef(new Animated.Value(0)).current;
+  const mountedRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    initializeSession();
+
+    return () => {
+      mountedRef.current = false;
+      Speech.stop();
+    };
+  }, []);
+
+  // Timer — increments every second while recording.
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+
+    if (isRecording) {
+      interval = setInterval(() => {
+        setSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [isRecording]);
+
+  // Pulse / glow animation — runs while microphone is recording.
+  useEffect(() => {
+    let pulseLoop: Animated.CompositeAnimation | undefined;
+
+    if (isRecording) {
+      pulseLoop = Animated.loop(
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(pulseAnim, {
+              toValue: 1.02,
+              duration: 650,
+              useNativeDriver: true,
+            }),
+            Animated.timing(pulseAnim, {
+              toValue: 1,
+              duration: 650,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.timing(glowAnim, {
+              toValue: 0.38,
+              duration: 650,
+              useNativeDriver: true,
+            }),
+            Animated.timing(glowAnim, {
+              toValue: 0.14,
+              duration: 650,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      );
+
+      pulseLoop.start();
+    } else {
+      pulseAnim.setValue(1);
+      glowAnim.setValue(0);
+    }
+
+    return () => pulseLoop?.stop();
+  }, [isRecording, glowAnim, pulseAnim]);
+
+  const formattedTime = useMemo<string>(() => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }, [seconds]);
+
+  /**
+   * Wraps expo-speech in a Promise so callers can `await` until the utterance
+   * completes, is stopped, or errors.
+   */
+  const speakTextAsync = (text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!text || !text.trim()) return resolve();
+
+      Speech.stop();
+
+      if (mountedRef.current) {
+        setIsSpeaking(true);
+      }
+
+      Speech.speak(text, {
+        language: "en-US",
+        rate: 0.95,
+        pitch: 1.0,
+        onDone: () => {
+          if (mountedRef.current) setIsSpeaking(false);
+          resolve();
+        },
+        onStopped: () => {
+          if (mountedRef.current) setIsSpeaking(false);
+          resolve();
+        },
+        onError: () => {
+          if (mountedRef.current) setIsSpeaking(false);
+          resolve();
+        },
+      });
+    });
+  };
+
+  const speakQuestion = async (text: string): Promise<void> => {
+    if (!text) return;
+
+    setStatusText("AI is asking the question...");
+    await speakTextAsync(text);
+
+    if (mountedRef.current) {
+      setStatusText("Tap the mic to start answering.");
+    }
+  };
+
+  const initializeSession = async (): Promise<void> => {
+    try {
+      if (!candidateId) {
+        throw new Error("Candidate ID is missing. Please upload resume first.");
+      }
+
+      setStatusText("Loading first interview question...");
+
+      const startResult = await triggerStartPracticeQuestion({
+        userId: candidateId,
+      });
+      if (startResult.error) {
+        // RTK Query error is a discriminated union — cast to access .data/.error safely.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const errData = (startResult.error as any)?.data;
+        throw new Error(
+          errData?.detail || errData?.message ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (startResult.error as any)?.error ||
+          "Could not start practice session."
+        );
+      }
+
+      // startResult.data is NormalizedQuestion | null (typed at the slice level).
+      const data: NormalizedQuestion | null = startResult.data ?? null;
+
+      if (!mountedRef.current) return;
+
+      setQuestionIndex(1);
+      setQuestionId(data?.id || "");
+      setQuestionText(data?.text || "");
+      setSessionFinished(false);
+
+      await speakQuestion(data?.text || "First question.");
+    } catch (error) {
+      logger.log("Practice session init error:", error);
+
+      if (!mountedRef.current) return;
+
+      Alert.alert(
+        "Error",
+        (error as Error)?.message || "Could not start practice session."
+      );
+      setStatusText("Session failed.");
+    }
+  };
+
+  const handleMicPress = async (): Promise<void> => {
+    if (isSpeaking || isLoadingNext || sessionFinished) return;
+
+    try {
+      if (!isRecording) {
+        setSeconds(0);
+        setStatusText("Starting microphone...");
+        await start();
+
+        if (mountedRef.current) {
+          setStatusText("Recording in progress...");
+        }
+      } else {
+        setStatusText("Stopping recording...");
+        setIsLoadingNext(true);
+
+        // stop() returns string | null (typed in useRealtimeWaveform).
+        const audioUri: string | null = await stop();
+
+        if (!audioUri) {
+          throw new Error("No recording produced.");
+        }
+
+        await handleBackendFlow(audioUri);
+      }
+    } catch (error) {
+      logger.log("Mic error:", error);
+
+      if (!mountedRef.current) return;
+
+      setIsLoadingNext(false);
+      setStatusText("Microphone error");
+
+      Alert.alert(
+        "Microphone Error",
+        (error as Error)?.message || "Could not access microphone"
+      );
+    }
+  };
+
+  const handleBackendFlow = async (audioUri: string): Promise<void> => {
+    try {
+      if (!candidateId) {
+        throw new Error("Candidate ID missing.");
+      }
+
+      if (!questionId) {
+        throw new Error("Question ID missing.");
+      }
+
+      setStatusText("Sending answer to backend...");
+
+      const submitResult = await triggerSubmitPracticeAnswer({
+        audioUri,
+        userId: candidateId,
+        questionId,
+      });
+      if (submitResult.error) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const errData = (submitResult.error as any)?.data;
+        throw new Error(
+          errData?.detail || errData?.message ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (submitResult.error as any)?.error ||
+          "Failed to process recording."
+        );
+      }
+
+      // submitResult.data is NormalizedAnswerResponse (typed at the slice level).
+      const data: NormalizedAnswerResponse = submitResult.data;
+
+      if (!mountedRef.current) return;
+
+      setSeconds(0);
+
+      if (data.feedback) {
+        setStatusText("Playing feedback...");
+        await speakTextAsync(data.feedback);
+      }
+
+      if (!mountedRef.current) return;
+
+      if (data.practiceComplete) {
+        setSessionFinished(true);
+        setIsLoadingNext(false);
+        setStatusText("Practice session completed.");
+
+        await speakTextAsync(
+          "Great job. You have completed your practice session."
+        );
+
+        if (!mountedRef.current) return;
+
+        Alert.alert(
+          "Practice Complete",
+          "Nice work! Keep practicing regularly.",
+          [
+            {
+              text: "Go Back",
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+        return;
+      }
+
+      const nextQuestionText: string = data.nextQuestion?.text || "";
+      const nextQuestionId:   string = data.nextQuestion?.id   || "";
+
+      setQuestionIndex((prev) => prev + 1);
+      setQuestionId(nextQuestionId);
+      setQuestionText(nextQuestionText);
+      setStatusText("Playing next question...");
+
+      await speakQuestion(nextQuestionText || "Next question.");
+
+      if (mountedRef.current) {
+        setIsLoadingNext(false);
+      }
+    } catch (error) {
+      logger.log("Practice backend error:", error);
+
+      if (!mountedRef.current) return;
+
+      setIsLoadingNext(false);
+      setStatusText("Failed to process answer.");
+
+      Alert.alert(
+        "Error",
+        (error as Error)?.message || "Failed to process recording."
+      );
+    }
+  };
+
+  const handleReplayQuestion = async (): Promise<void> => {
+    if (
+      !questionText ||
+      isLoadingNext ||
+      isRecording ||
+      isSpeaking ||
+      sessionFinished
+    ) {
+      return;
+    }
+
+    await speakQuestion(questionText);
+  };
+
+  const assistantStateText: string = isRecording
+    ? "Listening..."
+    : isSpeaking
+    ? "Audio Playing..."
+    : isLoadingNext
+    ? "Processing..."
+    : sessionFinished
+    ? "Completed"
+    : "Tap to Speak";
+
+  const isWeb: boolean = Platform.OS === "web";
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <View style={styles.container}>
+        <View style={styles.headerBlock}>
+          <Text style={styles.screenTitle}>Interview Coach</Text>
+          <Text style={styles.screenSubtitle}>{sessionTitle}</Text>
+        </View>
+
+        <View style={styles.questionCard}>
+          <View style={styles.questionTopRow}>
+            <View style={styles.questionBadge}>
+              <Ionicons name="sparkles" size={15} color="#2563EB" />
+              <Text style={styles.questionBadgeText}>Practice Question</Text>
+            </View>
+
+            <View style={styles.rightTopGroup}>
+              <View style={styles.questionNumberPill}>
+                <Text style={styles.questionNumberText}>Q{questionIndex}</Text>
+              </View>
+
+              <TouchableOpacity
+                testID="replay-button"
+                style={[
+                  styles.replayButton,
+                  (isRecording || isLoadingNext || isSpeaking) &&
+                    styles.replayButtonDisabled,
+                ]}
+                onPress={handleReplayQuestion}
+                disabled={isRecording || isLoadingNext || isSpeaking}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name="volume-high-outline"
+                  size={18}
+                  color="#0F172A"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={styles.questionText}>
+            {questionText || "Loading question..."}
+          </Text>
+        </View>
+
+        <View style={styles.centerSection}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.voiceGlow,
+              isWeb ? styles.voiceGlowWeb : styles.voiceGlowMobile,
+              {
+                opacity: glowAnim,
+                transform: [{ scale: pulseAnim }],
+              },
+            ]}
+          />
+
+          <View
+            style={[
+              styles.voiceOrbOuter,
+              isWeb ? styles.voiceOrbOuterWeb : styles.voiceOrbOuterMobile,
+            ]}
+          >
+            <View
+              style={[
+                styles.voiceOrbInner,
+                isWeb ? styles.voiceOrbInnerWeb : styles.voiceOrbInnerMobile,
+              ]}
+            >
+              <Text style={styles.orbTitle}>Voice Response</Text>
+              <Text style={styles.orbSubTitle}>{assistantStateText}</Text>
+
+              <View style={styles.waveformArea}>
+                <View style={styles.waveformClipper}>
+                  <View
+                    style={[
+                      styles.waveformShell,
+                      isWeb ? styles.waveformShellWeb : styles.waveformShellMobile,
+                    ]}
+                  >
+                    <Waveform bars={bars} />
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              testID="mic-button"
+              style={[
+                styles.micButtonFloating,
+                isRecording && styles.micButtonActive,
+                (isSpeaking || isLoadingNext || sessionFinished) &&
+                  styles.micButtonDisabled,
+              ]}
+              onPress={handleMicPress}
+              activeOpacity={0.9}
+              disabled={isSpeaking || isLoadingNext || sessionFinished}
+            >
+              {isLoadingNext ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Ionicons
+                  name={isRecording ? "stop" : "mic"}
+                  size={30}
+                  color="#fff"
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.bottomCard}>
+          <View style={styles.timerRow}>
+            <View style={styles.timerPill}>
+              <Ionicons name="time-outline" size={16} color="#0F172A" />
+              <Text style={styles.timerText}>{formattedTime}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.statusText}>{statusText}</Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#EEF4FF",
+  },
+
+  container: {
+    flex: 1,
+    backgroundColor: "#EEF4FF",
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "web" ? 20 : 8,
+    paddingBottom: 14,
+    justifyContent: "space-between",
+  },
+
+  headerBlock: {
+    marginTop: 4,
+    marginBottom: 10,
+  },
+
+  screenTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+  },
+
+  screenSubtitle: {
+    marginTop: 4,
+    fontSize: 15,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+
+  questionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+
+  questionTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  questionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DBEAFE",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+
+  questionBadgeText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+
+  rightTopGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  questionNumberPill: {
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginRight: 10,
+  },
+
+  questionNumberText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#334155",
+  },
+
+  replayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  replayButtonDisabled: {
+    opacity: 0.5,
+  },
+
+  questionText: {
+    marginTop: 16,
+    fontSize: 21,
+    lineHeight: 31,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  centerSection: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    minHeight: Platform.OS === "web" ? 360 : 280,
+    marginTop: 4,
+    marginBottom: 18,
+  },
+
+  voiceGlow: {
+    position: "absolute",
+    backgroundColor: "#2563EB",
+  },
+
+  voiceGlowWeb: {
+    width: 380,
+    height: 380,
+    borderRadius: 190,
+  },
+
+  voiceGlowMobile: {
+    width: 286,
+    height: 286,
+    borderRadius: 143,
+  },
+
+  voiceOrbOuter: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15,23,42,0.06)",
+    overflow: "visible",
+  },
+
+  voiceOrbOuterWeb: {
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+  },
+
+  voiceOrbOuterMobile: {
+    width: 270,
+    height: 270,
+    borderRadius: 135,
+  },
+
+  voiceOrbInner: {
+    backgroundColor: "#071433",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.22,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
+    overflow: "hidden",
+  },
+
+  voiceOrbInnerWeb: {
+    width: 316,
+    height: 316,
+    borderRadius: 158,
+    paddingTop: 28,
+    paddingBottom: 38,
+    paddingHorizontal: 24,
+  },
+
+  voiceOrbInnerMobile: {
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    paddingTop: 22,
+    paddingBottom: 34,
+    paddingHorizontal: 16,
+  },
+
+  orbTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+
+  orbSubTitle: {
+    marginTop: 6,
+    color: "rgba(226,232,240,0.8)",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  waveformArea: {
+    width: "100%",
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: Platform.OS === "web" ? 8 : 0,
+    paddingBottom: Platform.OS === "web" ? 26 : 22,
+  },
+
+  waveformClipper: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    borderRadius: 999,
+  },
+
+  waveformShell: {
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  waveformShellWeb: {
+    width: 226,
+    height: 110,
+  },
+
+  waveformShellMobile: {
+    width: 176,
+    height: 84,
+  },
+
+  micButtonFloating: {
+    position: "absolute",
+    bottom: -10,
+    alignSelf: "center",
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2563EB",
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+    zIndex: 20,
+  },
+
+  micButtonActive: {
+    backgroundColor: "#DC2626",
+    shadowColor: "#DC2626",
+  },
+
+  micButtonDisabled: {
+    opacity: 0.7,
+  },
+
+  bottomCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    padding: 18,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+
+  timerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  timerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+  },
+
+  timerText: {
+    marginLeft: 7,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  statusText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+});

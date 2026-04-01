@@ -5,8 +5,8 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { Alert } from 'react-native';
 
-import ResumeScreen from '../../../src/features/resume/ResumeScreen';
-import profileReducer from '../../../src/features/profile/profileSlice';
+import ResumeScreen from '../../../src/screens/ResumeScreen';
+import profileReducer from '../../../src/store/profileSlice';
 
 // Provide a mock for expo-document-picker
 jest.mock('expo-document-picker', () => ({
@@ -18,7 +18,7 @@ jest.mock('expo-document-picker', () => ({
 
 // Mock the API slice correctly so we can spy on it
 const mockTriggerUploadResume = jest.fn();
-jest.mock('../../../src/features/resume/resumeApiSlice', () => ({
+jest.mock('../../../src/services/resumeApiSlice', () => ({
   useUploadResumeMutation: () => [mockTriggerUploadResume, { isLoading: false }],
 }));
 

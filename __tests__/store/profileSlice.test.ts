@@ -4,7 +4,7 @@ import profileReducer, {
   setResumeUploaded,
   resetProfile,
   ProfileState,
-} from '../../src/features/profile/profileSlice';
+} from '../../src/store/profileSlice';
 
 describe('profileSlice reducers', () => {
   const initialState: ProfileState = {

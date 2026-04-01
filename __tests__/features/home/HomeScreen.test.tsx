@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 
-import HomeScreen from '../../../src/features/home/HomeScreen';
-import profileReducer from '../../../src/features/profile/profileSlice';
+import HomeScreen from '../../../src/screens/HomeScreen';
+import profileReducer from '../../../src/store/profileSlice';
 
 const setupTestStore = () =>
   configureStore({

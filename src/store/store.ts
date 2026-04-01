@@ -6,10 +6,10 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import rootReducer from './rootReducer';
-import { resumeApi } from '../features/resume/resumeApiSlice';
-import { practiceApi } from '../features/session/practiceApiSlice';
-import { interviewApi } from '../features/interview/interviewApiSlice';
-import { mockInterviewApi } from '../features/mock-interview/mockInterviewApiSlice';
+import { resumeApi } from '../services/resumeApiSlice';
+import { practiceApi } from '../services/practiceApiSlice';
+import { interviewApi } from '../services/interviewApiSlice';
+import { mockInterviewApi } from '../services/mockInterviewApiSlice';
 
 const store = configureStore({
   reducer: rootReducer,

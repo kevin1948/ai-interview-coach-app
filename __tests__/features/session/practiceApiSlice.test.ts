@@ -1,8 +1,8 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { practiceApi } from '../../../src/features/session/practiceApiSlice';
-import * as apiConfig from '../../../src/config/apiConfig';
+import { practiceApi } from '../../../src/services/practiceApiSlice';
+import * as apiConfig from '../../../src/constants/apiConfig';
 
-jest.mock('../../../src/config/apiConfig', () => ({
+jest.mock('../../../src/constants/apiConfig', () => ({
   USE_MOCK_API: true,
   FULL_API_BASE_URL: 'http://localhost:8000',
 }));

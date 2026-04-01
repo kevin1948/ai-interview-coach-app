@@ -16,8 +16,8 @@
 import React, { useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
 
-import InterviewScreen from "../../src/features/interview/InterviewScreen";
-import { createNavigationBridge } from "../../src/lib/navigationBridge";
+import InterviewScreen from "../../src/screens/InterviewScreen";
+import { createNavigationBridge } from "../../src/utils/navigationBridge";
 
 export default function InterviewRoute() {
   const params = useLocalSearchParams<{

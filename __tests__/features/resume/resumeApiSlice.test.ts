@@ -1,8 +1,8 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { resumeApi } from '../../../src/features/resume/resumeApiSlice';
-import * as apiConfig from '../../../src/config/apiConfig';
+import { resumeApi } from '../../../src/services/resumeApiSlice';
+import * as apiConfig from '../../../src/constants/apiConfig';
 
-jest.mock('../../../src/config/apiConfig', () => ({
+jest.mock('../../../src/constants/apiConfig', () => ({
   USE_MOCK_API: true,
   API_BASE_URL: 'http://localhost:8000',
 }));

@@ -3,7 +3,7 @@
  *
  * Typed Redux hooks — use these instead of plain useDispatch / useSelector.
  *
- *   import { useAppDispatch, useAppSelector } from '../../store/hooks';
+ *   import { useAppDispatch, useAppSelector } from '../store/hooks';
  *
  *   const dispatch    = useAppDispatch();
  *   const candidateId = useAppSelector((s) => s.profile.candidateId);

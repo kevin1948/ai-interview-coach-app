@@ -16,8 +16,8 @@
 import React, { useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
 
-import MockInterviewScreen from "../../src/features/mock-interview/MockInterviewScreen";
-import { createNavigationBridge } from "../../src/lib/navigationBridge";
+import MockInterviewScreen from "../../src/screens/MockInterviewScreen";
+import { createNavigationBridge } from "../../src/utils/navigationBridge";
 
 export default function MockInterviewSessionRoute() {
   const { sessionId, ...rest } = useLocalSearchParams<{
